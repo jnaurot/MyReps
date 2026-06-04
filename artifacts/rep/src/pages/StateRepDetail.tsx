@@ -51,6 +51,7 @@ import { StatusFilterControls, StatusStagePills } from "@/components/layout/Stat
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
+import { billFromParam, stateBillPath } from "@/lib/routes";
 
 function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; jurisdiction?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
   const isMobile = useIsMobile();
@@ -353,11 +354,31 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   );
 }
 
-function StateVotesList({ memberId, jurisdiction }: { memberId: string; jurisdiction?: string }) {
+function StateVotesList({ memberId, jurisdiction, memberName }: { memberId: string; jurisdiction?: string; memberName?: string }) {
   const isMobile = useIsMobile();
-  const [offset, setOffset] = useState(0);
-  const [filter, setFilter] = useState<"all" | "yea" | "nay" | "present" | "not-voting">("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const pageSearch = useSearch();
+  const initialParams = new URLSearchParams(pageSearch);
+  const initialOffsetParam = Number(initialParams.get("offset") ?? "0");
+  const initialOffset =
+    Number.isFinite(initialOffsetParam) && initialOffsetParam >= 0
+      ? initialOffsetParam
+      : 0;
+  const initialFilterParam = initialParams.get("filter");
+  const initialFilter =
+    initialFilterParam === "yea" ||
+    initialFilterParam === "nay" ||
+    initialFilterParam === "present" ||
+    initialFilterParam === "not-voting"
+      ? initialFilterParam
+      : "all";
+  const [offset, setOffset] = useState(() => {
+    return initialOffset;
+  });
+  const [filter, setFilter] = useState<"all" | "yea" | "nay" | "present" | "not-voting">(() => initialFilter);
+  const [searchQuery, setSearchQuery] = useState(initialParams.get("q") ?? "");
+  const [mobileRestoreTargetOffset, setMobileRestoreTargetOffset] = useState(
+    () => initialOffset,
+  );
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const listViewportRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -366,6 +387,7 @@ function StateVotesList({ memberId, jurisdiction }: { memberId: string; jurisdic
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const restoredScrollRef = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
 
@@ -450,6 +472,98 @@ function StateVotesList({ memberId, jurisdiction }: { memberId: string; jurisdic
   };
 
   const votesToRender = isMobile ? (allVotes as typeof votes) : votes;
+  const returnParams = new URLSearchParams(pageSearch);
+  const returnPath = `/rep/state/${memberId}?${returnParams.toString()}`;
+  const restorationScrollStorageKey = `scroll:${returnPath}:votes`;
+  const backPathParams = new URLSearchParams();
+  backPathParams.set("tab", "votes");
+  backPathParams.set("offset", String(offset));
+  if (debouncedSearchQuery) backPathParams.set("q", debouncedSearchQuery);
+  if (filter !== "all") backPathParams.set("filter", filter);
+  const backPath = `/rep/state/${memberId}?${backPathParams.toString()}`;
+  const scrollStorageKey = `scroll:${backPath}:votes`;
+  const fromParam = memberName
+    ? billFromParam(backPath, memberName)
+    : `?from=${encodeURIComponent(backPath)}`;
+
+  useEffect(() => {
+    restoredScrollRef.current = false;
+  }, [restorationScrollStorageKey]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(pageSearch);
+    const nextOffset = Number(params.get("offset") ?? "0");
+    const nextFilter = params.get("filter");
+    const normalizedOffset =
+      Number.isFinite(nextOffset) && nextOffset >= 0 ? nextOffset : 0;
+    setMobileRestoreTargetOffset(normalizedOffset);
+    setOffset(isMobile && normalizedOffset > 0 ? 0 : normalizedOffset);
+    setFilter(
+      nextFilter === "yea" ||
+        nextFilter === "nay" ||
+        nextFilter === "present" ||
+        nextFilter === "not-voting"
+        ? nextFilter
+        : "all",
+    );
+    setSearchQuery(params.get("q") ?? "");
+    if (isMobile) {
+      setAllVotes([]);
+      appendedOffsetRef.current = new Set();
+    }
+  }, [pageSearch, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    if (mobileRestoreTargetOffset <= 0) return;
+    if (isLoading || isPlaceholderData) return;
+    if (allVotes.length > mobileRestoreTargetOffset) return;
+    if (allVotes.length >= totalCount) return;
+    const nextOffset = allVotes.length;
+    if (nextOffset !== offset) {
+      setOffset(nextOffset);
+    }
+  }, [
+    allVotes.length,
+    isLoading,
+    isMobile,
+    isPlaceholderData,
+    mobileRestoreTargetOffset,
+    offset,
+    totalCount,
+  ]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (isPlaceholderData) return;
+    if (restoredScrollRef.current) return;
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(restorationScrollStorageKey);
+    if (!raw) {
+      restoredScrollRef.current = true;
+      return;
+    }
+    const scrollTop = Number(raw);
+    if (!Number.isFinite(scrollTop)) {
+      restoredScrollRef.current = true;
+      return;
+    }
+    if (isMobile && allVotes.length <= mobileRestoreTargetOffset) return;
+    const id = window.requestAnimationFrame(() => {
+      if (listViewportRef.current) {
+        listViewportRef.current.scrollTop = scrollTop;
+      }
+      restoredScrollRef.current = true;
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [
+    allVotes.length,
+    isLoading,
+    isMobile,
+    isPlaceholderData,
+    mobileRestoreTargetOffset,
+    restorationScrollStorageKey,
+  ]);
 
   const voteFilters: { value: typeof filter; label: string }[] = [
     { value: "all", label: "All" },
@@ -496,13 +610,14 @@ function StateVotesList({ memberId, jurisdiction }: { memberId: string; jurisdic
 
         {votesToRender.map((vote, i) => {
           const isSnapPoint = isMobile && i > 0 && i % 20 === 0;
-          return (
-            <Card key={i} className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}>
+          const href = vote.billId ? `${stateBillPath(vote.billId)}${fromParam}` : null;
+          const content = (
+            <Card key={i} className={`${isSnapPoint ? "[scroll-snap-align:start]" : ""}${href ? " hover:border-primary transition-colors cursor-pointer" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     {vote.billIdentifier && <Badge variant="outline" className="text-xs font-mono mb-1">{vote.billIdentifier}</Badge>}
-                    <p className="font-medium text-sm line-clamp-2">{vote.billTitle}</p>
+                    <p className={`font-medium text-sm line-clamp-2${href ? " hover:text-primary transition-colors" : ""}`}>{vote.billTitle}</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className={`text-sm font-bold ${voteColor(vote.position)}`}>{vote.position}</p>
@@ -512,6 +627,24 @@ function StateVotesList({ memberId, jurisdiction }: { memberId: string; jurisdic
                 {vote.result && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">Result: {vote.result}</p>}
               </CardContent>
             </Card>
+          );
+
+          if (!href) {
+            return content;
+          }
+
+          return (
+            <Link
+              key={i}
+              href={href}
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const top = listViewportRef.current?.scrollTop ?? 0;
+                window.sessionStorage.setItem(scrollStorageKey, String(top));
+              }}
+            >
+              {content}
+            </Link>
           );
         })}
         {isMobile && <div ref={sentinelRef} className="h-1" />}
@@ -635,6 +768,8 @@ export function StateRepDetail() {
   const { memberId } = useParams<{ memberId: string }>();
   const apiMemberId = encodeURIComponent(memberId);
   const queryClient = useQueryClient();
+  const pageSearch = useSearch();
+  const initialParams = new URLSearchParams(pageSearch);
 
   const { data: memberData, isLoading } = useGetStateMember(apiMemberId, {
     query: { enabled: !!apiMemberId, queryKey: getGetStateMemberQueryKey(apiMemberId) }
@@ -644,6 +779,12 @@ export function StateRepDetail() {
   const cache = memberData?.cache;
 
   const [billType, setBillType] = useState<"sponsored" | "cosponsored">("sponsored");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = initialParams.get("tab");
+    return tab === "votes" || tab === "committees" || tab === "finance"
+      ? tab
+      : "bills";
+  });
 
   const refreshMutation = useRefreshStateMember({
     mutation: {
@@ -709,6 +850,16 @@ export function StateRepDetail() {
     });
   };
 
+  useEffect(() => {
+    const params = new URLSearchParams(pageSearch);
+    const tab = params.get("tab");
+    setActiveTab(
+      tab === "votes" || tab === "committees" || tab === "finance"
+        ? tab
+        : "bills",
+    );
+  }, [pageSearch]);
+
   return (
     <PageShell>
         <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors shrink-0">
@@ -770,7 +921,7 @@ export function StateRepDetail() {
                 </div>
             </RepProfileCard>
 
-            <Tabs defaultValue="bills" className="flex flex-col flex-1 min-h-0">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
               <div className="flex items-stretch gap-1 mb-6 shrink-0 max-sm:mb-4">
                 <TabsList className="flex-1">
                   <TabsTrigger value="bills" className="flex-1 gap-1.5"><FileText className="h-4 w-4" /><span className="hidden sm:inline">Bills</span></TabsTrigger>
@@ -791,7 +942,7 @@ export function StateRepDetail() {
               </div>
 
               <TabsContent value="bills" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateBillsList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} onRefresh={handleRefresh} refreshPending={refreshMutation.isPending || refreshBillsMutation.isPending} billType={billType} onBillTypeChange={setBillType} /></TabsContent>
-              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} jurisdiction={member.jurisdiction} /></TabsContent>
+              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} /></TabsContent>
               <TabsContent value="committees" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><CommitteesFromBills /></TabsContent>
               <TabsContent value="finance" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateFinanceTab name={member.name ?? ""} state={member.state} /></TabsContent>
             </Tabs>

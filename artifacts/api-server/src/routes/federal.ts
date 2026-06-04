@@ -1687,6 +1687,7 @@ router.get("/federal/members/:bioguideId/house-votes", async (req, res) => {
     // Fetch paginated votes
     const votes = await db
       .select({
+        congress: houseVotesTable.congress,
         rollCallNumber: houseVotesTable.rollCallNumber,
         date: houseVotesTable.voteDate,
         legislationType: houseVotesTable.legislationType,
@@ -2020,6 +2021,7 @@ router.get("/federal/members/:bioguideId/senate-votes", async (req, res) => {
 
     const votes = await db
       .select({
+        congress: senateRollCallVotesTable.congress,
         rollCallNumber: senateRollCallVotesTable.rollCallNumber,
         date: senateRollCallVotesTable.voteDate,
         documentType: senateRollCallVotesTable.documentType,

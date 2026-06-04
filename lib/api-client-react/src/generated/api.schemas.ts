@@ -262,6 +262,7 @@ export const HouseVoteRecordVoteCast = {
 } as const;
 
 export interface HouseVoteRecord {
+  congress?: number;
   rollCallNumber: number;
   date: string;
   legislationType?: string;
@@ -289,6 +290,7 @@ export const SenateVoteRecordVoteCast = {
 } as const;
 
 export interface SenateVoteRecord {
+  congress?: number;
   rollCallNumber: number;
   date: string;
   documentType?: string;

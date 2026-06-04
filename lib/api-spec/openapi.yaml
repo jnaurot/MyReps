@@ -1141,6 +1141,8 @@ components:
     HouseVoteRecord:
       type: object
       properties:
+        congress:
+          type: integer
         rollCallNumber:
           type: integer
         date:
@@ -1176,6 +1178,8 @@ components:
     SenateVoteRecord:
       type: object
       properties:
+        congress:
+          type: integer
         rollCallNumber:
           type: integer
         date:

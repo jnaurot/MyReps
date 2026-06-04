@@ -59,7 +59,8 @@ import { FilterBar } from "@/components/layout/FilterBar";
 import { StatusFilterControls, StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useDebounce } from "@/hooks/useDebounce";
-import { buildFederalBillHref } from "@/lib/billHref";
+import { buildFederalBillHref, buildFederalVoteBillHref } from "@/lib/billHref";
+import { billFromParam } from "@/lib/routes";
 
 function PolicyAreaChart({
   policyAreas,
@@ -746,16 +747,38 @@ export function BillsList({
 function VotesList({
   bioguideId,
   memberChamber,
+  memberName,
 }: {
   bioguideId: string;
   memberChamber?: string;
+  memberName?: string;
 }) {
   const isMobile = useIsMobile();
-  const [offset, setOffset] = useState(0);
+  const pageSearch = useSearch();
+  const initialParams = new URLSearchParams(pageSearch);
+  const initialOffsetParam = Number(initialParams.get("offset") ?? "0");
+  const initialOffset =
+    Number.isFinite(initialOffsetParam) && initialOffsetParam >= 0
+      ? initialOffsetParam
+      : 0;
+  const initialFilterParam = initialParams.get("filter");
+  const initialFilter =
+    initialFilterParam === "yea" ||
+    initialFilterParam === "nay" ||
+    initialFilterParam === "present" ||
+    initialFilterParam === "not-voting"
+      ? initialFilterParam
+      : "all";
+  const [offset, setOffset] = useState(() => {
+    return initialOffset;
+  });
   const [filter, setFilter] = useState<
     "all" | "yea" | "nay" | "present" | "not-voting"
-  >("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  >(() => initialFilter);
+  const [searchQuery, setSearchQuery] = useState(initialParams.get("q") ?? "");
+  const [mobileRestoreTargetOffset, setMobileRestoreTargetOffset] = useState(
+    () => initialOffset,
+  );
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const listViewportRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -764,6 +787,7 @@ function VotesList({
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const restoredScrollRef = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
 
@@ -870,6 +894,98 @@ function VotesList({
   };
 
   const votesToRender = isMobile ? (allVotes as typeof votes) : votes;
+  const returnParams = new URLSearchParams(pageSearch);
+  const returnPath = `/rep/federal/${bioguideId}?${returnParams.toString()}`;
+  const restorationScrollStorageKey = `scroll:${returnPath}:votes`;
+  const backPathParams = new URLSearchParams();
+  backPathParams.set("tab", "votes");
+  backPathParams.set("offset", String(offset));
+  if (debouncedSearchQuery) backPathParams.set("q", debouncedSearchQuery);
+  if (filter !== "all") backPathParams.set("filter", filter);
+  const backPath = `/rep/federal/${bioguideId}?${backPathParams.toString()}`;
+  const scrollStorageKey = `scroll:${backPath}:votes`;
+  const fromParam = memberName
+    ? billFromParam(backPath, memberName)
+    : `?from=${encodeURIComponent(backPath)}`;
+
+  useEffect(() => {
+    restoredScrollRef.current = false;
+  }, [restorationScrollStorageKey]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(pageSearch);
+    const nextOffset = Number(params.get("offset") ?? "0");
+    const nextFilter = params.get("filter");
+    const normalizedOffset =
+      Number.isFinite(nextOffset) && nextOffset >= 0 ? nextOffset : 0;
+    setMobileRestoreTargetOffset(normalizedOffset);
+    setOffset(isMobile && normalizedOffset > 0 ? 0 : normalizedOffset);
+    setFilter(
+      nextFilter === "yea" ||
+        nextFilter === "nay" ||
+        nextFilter === "present" ||
+        nextFilter === "not-voting"
+        ? nextFilter
+        : "all",
+    );
+    setSearchQuery(params.get("q") ?? "");
+    if (isMobile) {
+      setAllVotes([]);
+      appendedOffsetRef.current = new Set();
+    }
+  }, [pageSearch, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    if (mobileRestoreTargetOffset <= 0) return;
+    if (isLoading || isPlaceholderData) return;
+    if (allVotes.length > mobileRestoreTargetOffset) return;
+    if (allVotes.length >= totalCount) return;
+    const nextOffset = allVotes.length;
+    if (nextOffset !== offset) {
+      setOffset(nextOffset);
+    }
+  }, [
+    allVotes.length,
+    isLoading,
+    isMobile,
+    isPlaceholderData,
+    mobileRestoreTargetOffset,
+    offset,
+    totalCount,
+  ]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (isPlaceholderData) return;
+    if (restoredScrollRef.current) return;
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(restorationScrollStorageKey);
+    if (!raw) {
+      restoredScrollRef.current = true;
+      return;
+    }
+    const scrollTop = Number(raw);
+    if (!Number.isFinite(scrollTop)) {
+      restoredScrollRef.current = true;
+      return;
+    }
+    if (isMobile && allVotes.length <= mobileRestoreTargetOffset) return;
+    const id = window.requestAnimationFrame(() => {
+      if (listViewportRef.current) {
+        listViewportRef.current.scrollTop = scrollTop;
+      }
+      restoredScrollRef.current = true;
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [
+    allVotes.length,
+    isLoading,
+    isMobile,
+    isPlaceholderData,
+    mobileRestoreTargetOffset,
+    restorationScrollStorageKey,
+  ]);
 
   const voteFilters: { value: typeof filter; label: string }[] = [
     { value: "all", label: "All" },
@@ -927,10 +1043,12 @@ function VotesList({
 
         {votesToRender.map((vote: any, index: number) => {
           const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
-          return (
+          const href = buildFederalVoteBillHref(vote, fromParam);
+          const key = `${vote.congress ?? "unknown"}-${vote.date ?? "undated"}-${vote.rollCallNumber}`;
+          const content = (
             <Card
-              key={`${vote.congress}-${vote.session}-${vote.rollCallNumber}`}
-              className={`overflow-hidden${isSnapPoint ? " [scroll-snap-align:start]" : ""}`}
+              key={key}
+              className={`overflow-hidden${isSnapPoint ? " [scroll-snap-align:start]" : ""}${href ? " hover:border-primary transition-colors cursor-pointer" : ""}`}
             >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
@@ -946,7 +1064,7 @@ function VotesList({
                         </Badge>
                       )}
                     </div>
-                    <p className="font-medium text-sm line-clamp-2">
+                    <p className={`font-medium text-sm line-clamp-2${href ? " hover:text-primary transition-colors" : ""}`}>
                       {vote.voteTitle ??
                         vote.voteDescription ??
                         "Untitled Vote"}
@@ -974,6 +1092,24 @@ function VotesList({
                 </div>
               </CardContent>
             </Card>
+          );
+
+          if (!href) {
+            return content;
+          }
+
+          return (
+            <Link
+              key={key}
+              href={href}
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                const top = listViewportRef.current?.scrollTop ?? 0;
+                window.sessionStorage.setItem(scrollStorageKey, String(top));
+              }}
+            >
+              {content}
+            </Link>
           );
         })}
         {isMobile && <div ref={sentinelRef} className="h-1" />}
@@ -1216,6 +1352,8 @@ function FinanceTab({ name, state }: { name: string; state?: string }) {
 export function FederalRepDetail() {
   const { bioguideId } = useParams<{ bioguideId: string }>();
   const queryClient = useQueryClient();
+  const pageSearch = useSearch();
+  const initialParams = new URLSearchParams(pageSearch);
 
   const memberQueryKey = [...getGetFederalMemberQueryKey(bioguideId), "v2"];
 
@@ -1231,7 +1369,12 @@ export function FederalRepDetail() {
   );
   const [topIssuesExpanded, setTopIssuesExpanded] = useState(false);
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState("bills");
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = initialParams.get("tab");
+    return tab === "votes" || tab === "committees" || tab === "finance"
+      ? tab
+      : "bills";
+  });
   const [billsFiltersCollapsed, setBillsFiltersCollapsed] = useState(false);
   const billViewRef = useRef<"list" | "policyArea">("list");
   const { data: billSummaryData } = useGetFederalMemberBills(
@@ -1298,6 +1441,16 @@ export function FederalRepDetail() {
     refreshMutation.mutate({ bioguideId });
     refreshBillsMutation.mutate({ bioguideId, data: { type: billRole } });
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(pageSearch);
+    const tab = params.get("tab");
+    setActiveTab(
+      tab === "votes" || tab === "committees" || tab === "finance"
+        ? tab
+        : "bills",
+    );
+  }, [pageSearch]);
 
   return (
     <PageShell>
@@ -1539,6 +1692,7 @@ export function FederalRepDetail() {
                 <VotesList
                   bioguideId={bioguideId}
                   memberChamber={member.chamber}
+                  memberName={member.name}
                 />
               </TabsContent>
               <TabsContent

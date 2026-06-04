@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFederalBillHref } from "./billHref";
+import { buildFederalBillHref, buildFederalVoteBillHref } from "./billHref";
 
 describe("buildFederalBillHref", () => {
   it("builds a valid href for a bill", () => {
@@ -58,5 +58,37 @@ describe("buildFederalBillHref", () => {
     expect(
       buildFederalBillHref({ number: "SRES 10", congress: "119" }),
     ).toBe("/bills/federal/119/sres/10");
+  });
+});
+
+describe("buildFederalVoteBillHref", () => {
+  it("builds a federal vote href from house vote fields", () => {
+    expect(
+      buildFederalVoteBillHref({
+        congress: 119,
+        legislationType: "HR",
+        legislationNumber: "42",
+      }),
+    ).toBe("/bills/federal/119/hr/42");
+  });
+
+  it("normalizes punctuation in senate document types", () => {
+    expect(
+      buildFederalVoteBillHref({
+        congress: 119,
+        documentType: "S. Res.",
+        documentNumber: "10",
+      }),
+    ).toBe("/bills/federal/119/sres/10");
+  });
+
+  it("returns null for amendments", () => {
+    expect(
+      buildFederalVoteBillHref({
+        congress: 119,
+        documentType: "S.Amdt.",
+        documentNumber: "4954",
+      }),
+    ).toBeNull();
   });
 });
