@@ -91,7 +91,7 @@ export function VoteListCard({
   if (!href) return content;
 
   return (
-    <Link href={href} onClick={onClick}>
+    <Link href={href} onClick={onClick} className="block">
       {content}
     </Link>
   );

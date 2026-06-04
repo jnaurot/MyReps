@@ -91,4 +91,14 @@ describe("buildFederalVoteBillHref", () => {
       }),
     ).toBeNull();
   });
+
+  it("returns null for non-bill senate documents like nominations", () => {
+    expect(
+      buildFederalVoteBillHref({
+        congress: 119,
+        documentType: "PN",
+        documentNumber: "730-14",
+      }),
+    ).toBeNull();
+  });
 });

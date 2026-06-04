@@ -26,12 +26,26 @@ export function buildFederalVoteBillHref(
 
   const normalizedType = type.replace(/[^A-Za-z]/g, "");
   if (!normalizedType) return null;
+  const normalizedTypeLower = normalizedType.toLowerCase();
+  const linkableTypes = new Set([
+    "hr",
+    "s",
+    "hres",
+    "sres",
+    "hjres",
+    "sjres",
+    "hconres",
+    "sconres",
+    "hamdt",
+    "samdt",
+  ]);
+  if (!linkableTypes.has(normalizedTypeLower)) return null;
 
   return buildFederalBillHref(
     {
       congress,
       number: `${normalizedType} ${number}`,
-      itemCategory: normalizedType.toLowerCase().includes("amdt")
+      itemCategory: normalizedTypeLower.includes("amdt")
         ? "amendment"
         : undefined,
     },
