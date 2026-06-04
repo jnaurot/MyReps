@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RepProfileCard } from "@/components/RepProfileCard";
+import { VoteListCard } from "@/components/VoteListCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -36,7 +37,6 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   partyColor,
-  voteColor,
   formatMoney,
   BILL_STAGE_OPTIONS,
   BILL_STAGE_QUERY_KEYS,
@@ -279,9 +279,9 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity] space-y-3" : "space-y-3"}
+        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
-        {isLoading && !allBills.length && <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>}
+        {isLoading && !allBills.length && <div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>}
 
         {!isLoading && error && (
           <Card className={rateLimited ? "border-amber-300 bg-amber-50" : "border-destructive/40"}>
@@ -354,7 +354,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   );
 }
 
-function StateVotesList({ memberId, jurisdiction, memberName }: { memberId: string; jurisdiction?: string; memberName?: string }) {
+function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: { memberId: string; jurisdiction?: string; memberName?: string; memberChamber?: string }) {
   const isMobile = useIsMobile();
   const pageSearch = useSearch();
   const initialParams = new URLSearchParams(pageSearch);
@@ -600,9 +600,9 @@ function StateVotesList({ memberId, jurisdiction, memberName }: { memberId: stri
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity] space-y-3" : "space-y-3"}
+        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
-        {isLoading && !allVotes.length && <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>}
+        {isLoading && !allVotes.length && <div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>}
 
         {!isLoading && votesToRender.length === 0 && (
           <p className="text-muted-foreground text-center py-10">No voting records found.</p>
@@ -611,40 +611,35 @@ function StateVotesList({ memberId, jurisdiction, memberName }: { memberId: stri
         {votesToRender.map((vote, i) => {
           const isSnapPoint = isMobile && i > 0 && i % 20 === 0;
           const href = vote.billId ? `${stateBillPath(vote.billId)}${fromParam}` : null;
-          const content = (
-            <Card key={i} className={`${isSnapPoint ? "[scroll-snap-align:start]" : ""}${href ? " hover:border-primary transition-colors cursor-pointer" : ""}`}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    {vote.billIdentifier && <Badge variant="outline" className="text-xs font-mono mb-1">{vote.billIdentifier}</Badge>}
-                    <p className={`font-medium text-sm line-clamp-2${href ? " hover:text-primary transition-colors" : ""}`}>{vote.billTitle}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-sm font-bold ${voteColor(vote.position)}`}>{vote.position}</p>
-                    <p className="text-xs text-muted-foreground">{vote.date}</p>
-                  </div>
-                </div>
-                {vote.result && <p className="text-xs text-muted-foreground mt-2 border-t pt-2">Result: {vote.result}</p>}
-              </CardContent>
-            </Card>
-          );
-
-          if (!href) {
-            return content;
-          }
-
           return (
-            <Link
+            <VoteListCard
               key={i}
               href={href}
+              className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
+              badges={[
+                {
+                  label: memberChamber ?? "State",
+                  variant: "outline",
+                  className: "text-xs",
+                },
+                ...(vote.billIdentifier
+                  ? [{
+                      label: vote.billIdentifier,
+                      variant: "secondary" as const,
+                      className: "text-xs font-mono",
+                    }]
+                  : []),
+              ]}
+              title={vote.billTitle}
+              date={vote.date}
+              voteCast={vote.position}
+              voteResult={vote.result}
               onClick={() => {
                 if (typeof window === "undefined") return;
                 const top = listViewportRef.current?.scrollTop ?? 0;
                 window.sessionStorage.setItem(scrollStorageKey, String(top));
               }}
-            >
-              {content}
-            </Link>
+            />
           );
         })}
         {isMobile && <div ref={sentinelRef} className="h-1" />}
@@ -942,7 +937,7 @@ export function StateRepDetail() {
               </div>
 
               <TabsContent value="bills" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateBillsList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} onRefresh={handleRefresh} refreshPending={refreshMutation.isPending || refreshBillsMutation.isPending} billType={billType} onBillTypeChange={setBillType} /></TabsContent>
-              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} /></TabsContent>
+              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} memberChamber={member.chamber} /></TabsContent>
               <TabsContent value="committees" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><CommitteesFromBills /></TabsContent>
               <TabsContent value="finance" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateFinanceTab name={member.name ?? ""} state={member.state} /></TabsContent>
             </Tabs>

@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RepProfileCard } from "@/components/RepProfileCard";
+import { VoteListCard } from "@/components/VoteListCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -44,7 +45,6 @@ import { Input } from "@/components/ui/input";
 import { RepNameLink } from "@/components/RepNameLink";
 import {
   partyColor,
-  voteBadgeClass,
   formatMoney,
   BILL_STAGE_OPTIONS,
   BILL_STAGE_QUERY_KEYS,
@@ -569,7 +569,7 @@ export function BillsList({
             onScroll={handleScroll}
             className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
           >
-            <div className="space-y-3">
+            <div>
               {isLoading && !allBills.length && (
                 <>
                   {[...Array(5)].map((_, i) => (
@@ -1025,10 +1025,10 @@ function VotesList({
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity] space-y-3" : "space-y-3"}
+        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
         {isLoading && !allVotes.length && (
-          <div className="space-y-3">
+          <div>
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="h-20 w-full" />
             ))}
@@ -1045,71 +1045,41 @@ function VotesList({
           const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
           const href = buildFederalVoteBillHref(vote, fromParam);
           const key = `${vote.congress ?? "unknown"}-${vote.date ?? "undated"}-${vote.rollCallNumber}`;
-          const content = (
-            <Card
-              key={key}
-              className={`overflow-hidden${isSnapPoint ? " [scroll-snap-align:start]" : ""}${href ? " hover:border-primary transition-colors cursor-pointer" : ""}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-xs">
-                        {memberChamber ?? "Congress"}
-                      </Badge>
-                      {(vote.legislationType || vote.documentType) && (
-                        <Badge variant="secondary" className="text-xs">
-                          {vote.legislationType || vote.documentType}{" "}
-                          {vote.legislationNumber || vote.documentNumber}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className={`font-medium text-sm line-clamp-2${href ? " hover:text-primary transition-colors" : ""}`}>
-                      {vote.voteTitle ??
-                        vote.voteDescription ??
-                        "Untitled Vote"}
-                    </p>
-                    {vote.voteQuestion && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {vote.voteQuestion}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {vote.date}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <Badge
-                      variant="outline"
-                      className={`text-xs ${voteBadgeClass(vote.voteCast)}`}
-                    >
-                      {vote.voteCast}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {vote.voteResult}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-
-          if (!href) {
-            return content;
-          }
-
           return (
-            <Link
+            <VoteListCard
               key={key}
               href={href}
+              className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
+              badges={[
+                {
+                  label: memberChamber ?? "Congress",
+                  variant: "outline",
+                  className: "text-xs",
+                },
+                ...((vote.legislationType || vote.documentType) &&
+                (vote.legislationNumber || vote.documentNumber)
+                  ? [{
+                      label: `${vote.legislationType || vote.documentType} ${vote.legislationNumber || vote.documentNumber}`,
+                      variant: "secondary" as const,
+                      className: "text-xs",
+                    }]
+                  : []),
+              ]}
+              title={
+                vote.voteTitle ??
+                vote.voteDescription ??
+                "Untitled Vote"
+              }
+              subtitle={vote.voteQuestion}
+              date={vote.date}
+              voteCast={vote.voteCast}
+              voteResult={vote.voteResult}
               onClick={() => {
                 if (typeof window === "undefined") return;
                 const top = listViewportRef.current?.scrollTop ?? 0;
                 window.sessionStorage.setItem(scrollStorageKey, String(top));
               }}
-            >
-              {content}
-            </Link>
+            />
           );
         })}
         {isMobile && <div ref={sentinelRef} className="h-1" />}

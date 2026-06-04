@@ -304,9 +304,9 @@ export function StateBills() {
         onScroll={handleScroll}
         className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
-        <div className="space-y-3">
+        <div>
           {loadingBase && (!isMobile || allBills.length === 0) && (
-            <div className="space-y-3">
+            <div>
               {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
             </div>
           )}
