@@ -70,32 +70,6 @@ const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY;
 const BASE = "https://api.congress.gov/v3";
 
-// Regex patterns matching computeLegislationStageFlags for use with ~* on latestAction text.
-const STAGE_REGEX: Record<LegislationStageKey, string | null> = {
-  introduced: null, // all bills are introduced; no filter needed
-  committee: "(committee|referred|reported)",
-  floor_vote: "\\m(roll|yea|nay|vote|floor)\\M|agreed to",
-  signed_enacted: "(signed|became public law|became law|public law|enacted|approved by the governor)",
-  passed: "(passed house|passed senate|passed/agreed|agreed to in house|agreed to in senate|passed by|passed enrolled|returned passed|third reading passed|adopted|adopted by)",
-  dead: "(died|dead|failed|vetoed|tabled indefinitely|indefinitely postponed|withdrawn)",
-};
-const NOT_AGREED_TO = "not agreed to";
-
-function federalBillStageConditions(stages: LegislationStageKey[], col: any) {
-  const clauses = stages.map((stage) => {
-    if (stage === "introduced") return sql`true`;
-    if (stage === "passed") {
-      // Must not match "not agreed to", and must match signed_enacted OR passed pattern
-      return sql`(not (coalesce(${col}, '') ~* ${NOT_AGREED_TO}) and (coalesce(${col}, '') ~* ${STAGE_REGEX.signed_enacted} or coalesce(${col}, '') ~* ${STAGE_REGEX.passed}))`;
-    }
-    if (stage === "dead") {
-      return sql`(coalesce(${col}, '') ~* ${NOT_AGREED_TO} or coalesce(${col}, '') ~* ${STAGE_REGEX.dead})`;
-    }
-    return sql`coalesce(${col}, '') ~* ${STAGE_REGEX[stage]}`;
-  });
-  return clauses.length === 1 ? clauses[0] : or(...clauses);
-}
-
 function federalStageColumn(stage: LegislationStageKey) {
   switch (stage) {
     case "introduced":
@@ -2222,7 +2196,11 @@ router.get("/federal/bills", async (req, res) => {
 
     const stageCondition =
       selectedStages.length > 0
-        ? federalBillStageConditions(selectedStages, federalBillsTable.latestAction)
+        ? or(
+            ...selectedStages.map((stage) =>
+              eq(federalStageColumn(stage), true),
+            ),
+          )
         : undefined;
 
     // DB-first: serve cached page if present for this congress/chamber.
@@ -2247,10 +2225,19 @@ router.get("/federal/bills", async (req, res) => {
           congress: federalBillsTable.congress,
           introducedDate: federalBillsTable.introducedDate,
           latestAction: federalBillsTable.latestAction,
+          latestActionDate: federalBillsTable.latestActionDate,
+          stageIntroduced: federalBillsTable.stageIntroduced,
+          stageCommittee: federalBillsTable.stageCommittee,
+          stageFloorVote: federalBillsTable.stageFloorVote,
+          stagePassed: federalBillsTable.stagePassed,
+          stageSignedEnacted: federalBillsTable.stageSignedEnacted,
+          stageDead: federalBillsTable.stageDead,
           chamber: federalBillsTable.chamber,
           policyArea: federalBillsTable.policyArea,
           subjects: federalBillsTable.subjects,
           url: federalBillsTable.url,
+          category: federalBillsTable.category,
+          type: federalBillsTable.type,
         })
         .from(federalBillsTable)
         .where(and(...dbConditions))
@@ -2258,21 +2245,7 @@ router.get("/federal/bills", async (req, res) => {
         .limit(limit)
         .offset(offset);
 
-      const cachedBills = rows.map((b) => ({
-        id: b.id,
-        title: b.title ?? "Untitled",
-        number: b.number ?? undefined,
-        congress: b.congress ?? undefined,
-        introducedDate: b.introducedDate ?? undefined,
-        latestAction: b.latestAction ?? undefined,
-        latestActionDate: undefined,
-        sponsors: [],
-        url: b.url ?? undefined,
-        status: b.latestAction ?? undefined,
-        chamber: b.chamber ?? undefined,
-        policyArea: b.policyArea ?? undefined,
-        subjects: b.subjects ?? undefined,
-      }));
+      const cachedBills = rows.map(mapFederalLegislationForResponse);
 
       req.log.info(
         {
@@ -2305,6 +2278,15 @@ router.get("/federal/bills", async (req, res) => {
     );
     const bills = (data.bills ?? []).map((b: any) => {
       const billType = String(b.type ?? "").toUpperCase();
+      const stageFlags = computeLegislationStageFlags({
+        latestAction: b.latestAction?.text ?? null,
+        introducedDate: b.introducedDate ?? null,
+      });
+      const billCongress =
+        b.congress != null ? Number(b.congress) : currentCongress;
+      if (billCongress < currentCongress && !stageFlags.signed_enacted) {
+        stageFlags.dead = true;
+      }
       return {
         id: `${b.congress}-${billType}-${b.number}`,
         title: b.title ?? "Untitled",
@@ -2323,6 +2305,12 @@ router.get("/federal/bills", async (req, res) => {
           b.subjects?.item ??
           (Array.isArray(b.subjects) ? b.subjects : undefined),
         category: classifyFederalLegislationItem(b),
+        stageIntroduced: stageFlags.introduced,
+        stageCommittee: stageFlags.committee,
+        stageFloorVote: stageFlags.floor_vote,
+        stagePassed: stageFlags.passed,
+        stageSignedEnacted: stageFlags.signed_enacted,
+        stageDead: stageFlags.dead,
       };
     });
 
@@ -2358,6 +2346,12 @@ router.get("/federal/bills", async (req, res) => {
         policyArea: bill.policyArea ?? null,
         subjects: bill.subjects ?? [],
         url: bill.url ?? null,
+        stageIntroduced: bill.stageIntroduced ?? false,
+        stageCommittee: bill.stageCommittee ?? false,
+        stageFloorVote: bill.stageFloorVote ?? false,
+        stagePassed: bill.stagePassed ?? false,
+        stageSignedEnacted: bill.stageSignedEnacted ?? false,
+        stageDead: bill.stageDead ?? false,
         raw: bill,
       });
     }
@@ -2417,10 +2411,22 @@ router.get("/federal/bills/search", async (req, res) => {
       number: b.number,
       congress: b.congress,
       introducedDate: b.introducedDate,
+      latestAction: b.latestAction,
+      latestActionDate: b.latestActionDate,
+      stageIntroduced: b.stageIntroduced,
+      stageCommittee: b.stageCommittee,
+      stageFloorVote: b.stageFloorVote,
+      stagePassed: b.stagePassed,
+      stageSignedEnacted: b.stageSignedEnacted,
+      stageDead: b.stageDead,
       summary: b.summary,
       policyArea: b.policyArea,
       subjects: b.subjects,
       url: b.url,
+      status: b.latestAction,
+      chamber: b.chamber,
+      itemCategory: b.category ?? undefined,
+      legislationType: b.type ?? undefined,
     }));
 
     return res.json({ bills, totalCount, offset });

@@ -59,12 +59,22 @@ describe("GET /federal/bills — stage filtering integration", () => {
 
   it("a stageCondition is built when selectedStages are present", () => {
     expect(src).toContain(
-      "federalBillStageConditions(selectedStages, federalBillsTable.latestAction)",
+      "eq(federalStageColumn(stage), true)",
     );
   });
 
   it("stageCondition is spread into dbConditions", () => {
     expect(src).toContain("...(stageCondition ? [stageCondition] : []),");
+  });
+
+  it("cached DB responses include normalized stage flags for badge rendering", () => {
+    expect(src).toContain("stageSignedEnacted: federalBillsTable.stageSignedEnacted");
+    expect(src).toContain("const cachedBills = rows.map(mapFederalLegislationForResponse);");
+  });
+
+  it("live Congress.gov fetches compute and persist normalized stage flags", () => {
+    expect(src).toContain("const stageFlags = computeLegislationStageFlags({");
+    expect(src).toContain("stageSignedEnacted: stageFlags.signed_enacted");
   });
 
   it("stage filtering forces the DB path (skips Congress.gov API)", () => {
@@ -73,36 +83,6 @@ describe("GET /federal/bills — stage filtering integration", () => {
 
   it("stages value is included in the response log", () => {
     expect(src).toContain("stages,");
-  });
-});
-
-// ─── federalBillStageConditions SQL patterns ──────────────────────────────────
-
-describe("federalBillStageConditions — SQL regex patterns", () => {
-  const src = federalSource();
-
-  it("signed_enacted pattern covers relevant action text", () => {
-    expect(src).toContain(
-      "signed|became public law|became law|public law|enacted|approved by the governor",
-    );
-  });
-
-  it("passed pattern guards against 'not agreed to' false positive", () => {
-    expect(src).toContain("not (coalesce(${col}, '') ~* ${NOT_AGREED_TO})");
-  });
-
-  it("dead stage matches 'not agreed to' as well as explicit dead keywords", () => {
-    expect(src).toContain("coalesce(${col}, '') ~* ${NOT_AGREED_TO}");
-    expect(src).toContain("died|dead|failed|vetoed|tabled indefinitely|indefinitely postponed|withdrawn");
-  });
-
-  it("committee pattern covers referred and reported", () => {
-    expect(src).toContain("committee|referred|reported");
-  });
-
-  it("floor_vote pattern uses word-boundary anchors", () => {
-    // Source file stores the string as "\\m..." (escaped), so readFileSync sees two backslashes.
-    expect(src).toContain("\\\\m(roll|yea|nay|vote|floor)\\\\M|agreed to");
   });
 });
 
