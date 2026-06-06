@@ -14,6 +14,7 @@
     "backfill:state-bill-votes": "tsx ./src/backfillStateBillVotesAndCommittees.ts",
     "backfill:state-legislator-photos": "tsx ./src/syncStateLegislatorPhotoUrls.ts",
     "cache:state-legislator-photos": "tsx ./src/cacheStateLegislatorPhotos.ts",
+    "preload:state-legislator-photos": "tsx ./src/preloadStateLegislatorPhotos.ts",
     "hello": "tsx ./src/hello.ts",
     "ingest:openstates": "tsx ./src/ingestOpenStatesDump.ts",
     "ingest:openstates:all": "tsx ./src/ingestOpenStatesAll.ts",
