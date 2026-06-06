@@ -75,3 +75,8 @@ const STATE_CODES: Record<string, string> = Object.fromEntries(
 export function stateNameToCode(name: string): string | null {
   return STATE_CODES[name.toLowerCase()] ?? null;
 }
+
+export function stateMemberPhotoUrl(memberId: string, hasPhoto: boolean): string | undefined {
+  if (!hasPhoto) return undefined;
+  return `/api/state/member-photo?memberId=${encodeURIComponent(memberId)}`;
+}

@@ -3,6 +3,7 @@ import {
   formatCongressName,
   getStateName,
   normalizeCensusDistrict,
+  stateMemberPhotoUrl,
 } from "./representativesUtils";
 
 describe("representatives utilities", () => {
@@ -21,5 +22,12 @@ describe("representatives utilities", () => {
   it("maps state abbreviations case-insensitively", () => {
     expect(getStateName("md")).toBe("Maryland");
     expect(getStateName("ZZ")).toBeUndefined();
+  });
+
+  it("builds a cached state member photo proxy URL", () => {
+    expect(stateMemberPhotoUrl("ocd-person/abc-123", true)).toBe(
+      "/api/state/member-photo?memberId=ocd-person%2Fabc-123",
+    );
+    expect(stateMemberPhotoUrl("ocd-person/abc-123", false)).toBeUndefined();
   });
 });

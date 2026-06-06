@@ -37,10 +37,7 @@ import {
 import {
   computeChamberAwareStages,
 } from "../lib/chamberAwareStages";
-
-function stateMemberPhotoUrl(memberId: string, hasPhoto: boolean): string | undefined {
-  return hasPhoto ? `/api/state/member-photo/${encodeURIComponent(memberId)}` : undefined;
-}
+import { stateMemberPhotoUrl } from "./representativesUtils";
 
 const PLACEHOLDER_SVG = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
@@ -57,6 +54,16 @@ function sendPlaceholderPhoto(res: any) {
     .set("Cache-Control", "public, max-age=86400")
     .set("Content-Length", String(PLACEHOLDER_SVG.length))
     .send(PLACEHOLDER_SVG);
+}
+
+function getRequestedStateMemberPhotoId(req: any): string {
+  const queryMemberId = req.query?.memberId;
+  if (typeof queryMemberId === "string" && queryMemberId.trim()) {
+    return queryMemberId;
+  }
+
+  const legacyMemberId = req.params?.memberId;
+  return typeof legacyMemberId === "string" ? decodeURIComponent(legacyMemberId) : "";
 }
 
 const router = Router();
@@ -1294,9 +1301,13 @@ router.get("/state/bills/:billId", async (req, res) => {
   }
 });
 
-// Proxy OpenStates member photos with a 1-year immutable cache.
-router.get("/state/member-photo/:memberId", async (req, res) => {
-  const memberId = decodeURIComponent(req.params.memberId);
+async function handleStateMemberPhoto(req: any, res: any) {
+  const memberId = getRequestedStateMemberPhotoId(req);
+  if (!memberId) {
+    sendPlaceholderPhoto(res);
+    return;
+  }
+
   try {
     const [row] = await db
       .select({ photoUrl: stateLegislatorsTable.photoUrl })
@@ -1348,6 +1359,13 @@ router.get("/state/member-photo/:memberId", async (req, res) => {
     req.log.error({ err, memberId }, "State member photo failed; serving placeholder");
     sendPlaceholderPhoto(res);
   }
+}
+
+// Proxy OpenStates member photos with a 1-year immutable cache.
+router.get("/state/member-photo", handleStateMemberPhoto);
+router.get(/^\/state\/member-photo\/(.+)$/, (req, res, next) => {
+  req.params.memberId = req.params[0];
+  void handleStateMemberPhoto(req, res).catch(next);
 });
 
 export default router;

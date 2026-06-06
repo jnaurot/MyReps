@@ -3,6 +3,8 @@
 .env
 script
 dev*.sh
+*.dump
+
 
 # compiled output
 dist

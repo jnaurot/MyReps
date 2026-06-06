@@ -423,7 +423,7 @@ export function Home() {
             Know Your Representatives
           </h1>
           <p className="hidden sm:block text-lg md:text-xl text-primary-foreground/80 mb-10 max-w-2xl mx-auto">
-            Discover who represents you at the federal, state, and local levels. Track their bills, votes, and campaign finance.
+            Discover who represents you at the federal and state levels. Track their bills, votes, and campaign finance.
           </p>
 
           <div className="flex flex-col gap-4 max-sm:gap-2 max-w-xl mx-auto">

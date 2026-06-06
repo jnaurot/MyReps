@@ -12,6 +12,7 @@
     "backfill:state-bill-sponsorships": "tsx ./src/backfillStateBillSponsorshipsAndActions.ts",
     "backfill:state-bill-text": "tsx ./src/backfillStateBillSummariesAndText.ts",
     "backfill:state-bill-votes": "tsx ./src/backfillStateBillVotesAndCommittees.ts",
+    "backfill:state-legislator-photos": "tsx ./src/syncStateLegislatorPhotoUrls.ts",
     "cache:state-legislator-photos": "tsx ./src/cacheStateLegislatorPhotos.ts",
     "hello": "tsx ./src/hello.ts",
     "ingest:openstates": "tsx ./src/ingestOpenStatesDump.ts",

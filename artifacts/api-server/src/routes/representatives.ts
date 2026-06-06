@@ -9,6 +9,7 @@ import {
   formatCongressName,
   getStateName,
   normalizeCensusDistrict,
+  stateMemberPhotoUrl,
 } from "./representativesUtils";
 
 const router = Router();
@@ -220,7 +221,7 @@ async function fetchStateLegislators(
       name: person.name ?? "",
       office: person.chamber === "Senate" ? "State Senator" : "State Delegate",
       party: person.party,
-      photoUrl: person.photoUrl,
+      photoUrl: stateMemberPhotoUrl(person.id, !!person.photoUrl),
       level: "state" as const,
       chamber: person.chamber,
       openstatesId: person.id,

@@ -14,12 +14,10 @@ describe("state.ts photo caching source guards", () => {
     expect(src).toContain("setCachedPhoto");
   });
 
-  it("has a stateMemberPhotoUrl helper that returns a proxy path", () => {
+  it("imports the shared stateMemberPhotoUrl helper", () => {
     const src = getStateSource();
-    expect(src).toContain("function stateMemberPhotoUrl(");
-    expect(src).toMatch(
-      /stateMemberPhotoUrl[\s\S]{0,100}\/api\/state\/member-photo\/\$\{encodeURIComponent\(memberId\)\}/,
-    );
+    expect(src).toContain('from "./representativesUtils"');
+    expect(src).toContain("stateMemberPhotoUrl");
   });
 
   it("search endpoint wraps photoUrl with stateMemberPhotoUrl", () => {
@@ -45,15 +43,17 @@ describe("state.ts photo caching source guards", () => {
 
   it("member-photo endpoint checks getCachedPhoto before hitting upstream", () => {
     const src = getStateSource();
-    expect(src).toMatch(
-      /\/state\/member-photo\/:memberId[\s\S]{0,600}getCachedPhoto\(row\.photoUrl,\s*memberId\)/,
-    );
+    expect(src).toContain("async function handleStateMemberPhoto");
+    expect(src).toContain("const cached = await getCachedPhoto(row.photoUrl, memberId);");
   });
 
   it("member-photo endpoint writes to setCachedPhoto after upstream fetch", () => {
     const src = getStateSource();
-    expect(src).toMatch(
-      /\/state\/member-photo\/:memberId[\s\S]{0,1200}setCachedPhoto\(row\.photoUrl,\s*memberId,\s*buffer,\s*contentType\)/,
-    );
+    expect(src).toContain("await setCachedPhoto(row.photoUrl, memberId, buffer, contentType);");
+  });
+
+  it("supports legacy path-based member-photo URLs", () => {
+    const src = getStateSource();
+    expect(src).toContain('router.get(/^\\/state\\/member-photo\\/(.+)$/');
   });
 });
