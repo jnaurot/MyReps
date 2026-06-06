@@ -37,7 +37,7 @@ import {
 import {
   computeChamberAwareStages,
 } from "../lib/chamberAwareStages";
-import { stateMemberPhotoUrl } from "./representativesUtils";
+import { toBrowserPhotoUrl } from "./representativesUtils";
 
 const PLACEHOLDER_SVG = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
@@ -389,8 +389,7 @@ router.get("/state/members/search", async (req, res) => {
       chamber: r.chamber,
       district: r.district,
       jurisdiction: r.jurisdiction,
-      photoUrl: stateMemberPhotoUrl(r.id, !!r.photoUrl),
-      rawPhotoUrl: r.photoUrl ?? undefined,
+      photoUrl: toBrowserPhotoUrl(r.photoUrl),
       state: r.state,
     }));
 
@@ -415,8 +414,7 @@ router.get("/state/members/:memberId", async (req, res) => {
       ...result,
       legislator: {
         ...result.legislator,
-        photoUrl: stateMemberPhotoUrl(memberId, !!result.legislator.photoUrl),
-        rawPhotoUrl: result.legislator.photoUrl ?? undefined,
+        photoUrl: toBrowserPhotoUrl(result.legislator.photoUrl),
       },
     });
   } catch (err) {
@@ -439,8 +437,7 @@ router.post("/state/members/:memberId/refresh", async (req, res) => {
       ...result,
       legislator: {
         ...result.legislator,
-        photoUrl: stateMemberPhotoUrl(memberId, !!result.legislator.photoUrl),
-        rawPhotoUrl: result.legislator.photoUrl ?? undefined,
+        photoUrl: toBrowserPhotoUrl(result.legislator.photoUrl),
       },
     });
   } catch (err) {

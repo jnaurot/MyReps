@@ -3,7 +3,7 @@ import {
   formatCongressName,
   getStateName,
   normalizeCensusDistrict,
-  stateMemberPhotoUrl,
+  toBrowserPhotoUrl,
 } from "./representativesUtils";
 
 describe("representatives utilities", () => {
@@ -24,10 +24,13 @@ describe("representatives utilities", () => {
     expect(getStateName("ZZ")).toBeUndefined();
   });
 
-  it("builds a cached state member photo proxy URL", () => {
-    expect(stateMemberPhotoUrl("ocd-person/abc-123", true)).toBe(
-      "/api/state/member-photo?memberId=ocd-person%2Fabc-123",
+  it("normalizes browser-facing photo URLs to https when needed", () => {
+    expect(toBrowserPhotoUrl("http://example.com/photo.jpg")).toBe(
+      "https://example.com/photo.jpg",
     );
-    expect(stateMemberPhotoUrl("ocd-person/abc-123", false)).toBeUndefined();
+    expect(toBrowserPhotoUrl("https://example.com/photo.jpg")).toBe(
+      "https://example.com/photo.jpg",
+    );
+    expect(toBrowserPhotoUrl(null)).toBeUndefined();
   });
 });

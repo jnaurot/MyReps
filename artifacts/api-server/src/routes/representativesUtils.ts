@@ -76,7 +76,7 @@ export function stateNameToCode(name: string): string | null {
   return STATE_CODES[name.toLowerCase()] ?? null;
 }
 
-export function stateMemberPhotoUrl(memberId: string, hasPhoto: boolean): string | undefined {
-  if (!hasPhoto) return undefined;
-  return `/api/state/member-photo?memberId=${encodeURIComponent(memberId)}`;
+export function toBrowserPhotoUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return url.startsWith("http://") ? `https://${url.slice("http://".length)}` : url;
 }

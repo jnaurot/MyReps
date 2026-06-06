@@ -14,34 +14,25 @@ describe("state.ts photo caching source guards", () => {
     expect(src).toContain("setCachedPhoto");
   });
 
-  it("imports the shared stateMemberPhotoUrl helper", () => {
+  it("imports the shared browser photo URL helper", () => {
     const src = getStateSource();
     expect(src).toContain('from "./representativesUtils"');
-    expect(src).toContain("stateMemberPhotoUrl");
+    expect(src).toContain("toBrowserPhotoUrl");
   });
 
-  it("search endpoint wraps photoUrl with stateMemberPhotoUrl", () => {
+  it("search endpoint returns browser-facing photo URLs", () => {
     const src = getStateSource();
-    expect(src).toMatch(
-      /photoUrl:\s*stateMemberPhotoUrl\(r\.id,\s*!!r\.photoUrl\)/,
-    );
-    expect(src).toContain("rawPhotoUrl: r.photoUrl ?? undefined");
+    expect(src).toContain("photoUrl: toBrowserPhotoUrl(r.photoUrl)");
   });
 
-  it("detail endpoint wraps legislator.photoUrl with stateMemberPhotoUrl in the response", () => {
+  it("detail endpoint returns the browser-facing photo URL in the response", () => {
     const src = getStateSource();
-    expect(src).toMatch(
-      /\/state\/members\/:memberId[\s\S]{0,400}photoUrl:\s*stateMemberPhotoUrl\(memberId,\s*!!result\.legislator\.photoUrl\)/,
-    );
-    expect(src).toContain("rawPhotoUrl: result.legislator.photoUrl ?? undefined");
+    expect(src).toContain("photoUrl: toBrowserPhotoUrl(result.legislator.photoUrl)");
   });
 
-  it("refresh endpoint wraps legislator.photoUrl with stateMemberPhotoUrl in the response", () => {
+  it("refresh endpoint returns the browser-facing photo URL in the response", () => {
     const src = getStateSource();
-    expect(src).toMatch(
-      /\/state\/members\/:memberId\/refresh[\s\S]{0,400}photoUrl:\s*stateMemberPhotoUrl\(memberId,\s*!!result\.legislator\.photoUrl\)/,
-    );
-    expect(src).toContain("rawPhotoUrl: result.legislator.photoUrl ?? undefined");
+    expect(src).toContain("photoUrl: toBrowserPhotoUrl(result.legislator.photoUrl)");
   });
 
   it("member-photo endpoint checks getCachedPhoto before hitting upstream", () => {

@@ -6,16 +6,15 @@ function getRepresentativesSource() {
   return readFileSync(resolve(import.meta.dirname, "representatives.ts"), "utf8");
 }
 
-describe("representatives.ts photo caching source guards", () => {
-  it("imports stateMemberPhotoUrl from the shared representatives utils", () => {
+describe("representatives.ts state photo source guards", () => {
+  it("imports toBrowserPhotoUrl from the shared representatives utils", () => {
     const src = getRepresentativesSource();
     expect(src).toContain('from "./representativesUtils"');
-    expect(src).toContain("stateMemberPhotoUrl");
+    expect(src).toContain("toBrowserPhotoUrl");
   });
 
-  it("wraps state representative photos with the cached proxy URL", () => {
+  it("returns direct browser-facing state representative photo URLs", () => {
     const src = getRepresentativesSource();
-    expect(src).toContain("photoUrl: stateMemberPhotoUrl(person.id, !!person.photoUrl),");
-    expect(src).toContain("rawPhotoUrl: person.photoUrl ?? undefined,");
+    expect(src).toContain("photoUrl: toBrowserPhotoUrl(person.photoUrl),");
   });
 });

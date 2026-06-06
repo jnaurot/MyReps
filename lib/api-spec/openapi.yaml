@@ -789,8 +789,6 @@ components:
           type: string
         photoUrl:
           type: string
-        rawPhotoUrl:
-          type: string
         level:
           type: string
           enum: [federal, state, local]
@@ -1313,8 +1311,6 @@ components:
         phone:
           type: string
         photoUrl:
-          type: string
-        rawPhotoUrl:
           type: string
         openstatesUrl:
           type: string

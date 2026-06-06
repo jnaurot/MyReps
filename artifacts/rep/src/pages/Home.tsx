@@ -25,7 +25,6 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import { US_STATES, getStateName, getStateFlagUrl } from "@/lib/states";
 import { partyColor } from "@/lib/rep-utils";
-import { StateMemberPhotoImage } from "@/components/StateMemberPhotoImage";
 import type { Representative } from "@workspace/api-client-react";
 
 // Exported for testing. Reps are loaded via searchAddress (from lastSearchedAddress),
@@ -374,21 +373,8 @@ export function Home() {
         <Card className="h-full transition-all duration-200 hover:shadow-md hover:border-accent">
           <CardHeader className="flex flex-row items-center gap-4 pb-2">
             <Avatar className="h-16 w-16 border-2 border-muted">
-              {rep.level === "state" && rep.openstatesId ? (
-                <StateMemberPhotoImage
-                  proxyPhotoUrl={rep.photoUrl}
-                  rawPhotoUrl={rep.rawPhotoUrl}
-                  alt={rep.name}
-                  className="h-full w-full object-cover object-top"
-                  fallbackClassName="flex h-full w-full items-center justify-center bg-muted"
-                  fallbackText={rep.name.substring(0, 2)}
-                />
-              ) : (
-                <>
-                  <AvatarImage src={rep.photoUrl} alt={rep.name} className="object-cover object-top" />
-                  <AvatarFallback>{rep.name.substring(0, 2)}</AvatarFallback>
-                </>
-              )}
+              <AvatarImage src={rep.photoUrl} alt={rep.name} className="object-cover object-top" />
+              <AvatarFallback>{rep.name.substring(0, 2)}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
               <h3 className="font-bold text-lg group-hover:text-accent transition-colors">{rep.name}</h3>
