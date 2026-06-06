@@ -53,6 +53,9 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
 import { billFromParam, stateBillPath } from "@/lib/routes";
 
+const NADINE_NAKAMURA_PHOTO_URL =
+  "http://www.capitol.hawaii.gov/MemberFiles/RepSenPhotos/Nakamura.jpg";
+
 function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; jurisdiction?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
   const isMobile = useIsMobile();
   const pageSearch = useSearch();
@@ -855,6 +858,38 @@ export function StateRepDetail() {
     );
   }, [pageSearch]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(pageSearch);
+    if (params.get("debugNadinePhoto") !== "1") return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch(NADINE_NAKAMURA_PHOTO_URL, {
+          redirect: "follow",
+        });
+        if (cancelled) return;
+        console.info("[debugNadinePhoto] frontend fetch result", {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          type: response.type,
+          redirected: response.redirected,
+          url: response.url,
+          contentType: response.headers.get("content-type"),
+        });
+      } catch (error) {
+        if (cancelled) return;
+        console.error("[debugNadinePhoto] frontend fetch failed", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pageSearch]);
+
   return (
     <PageShell>
         <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors shrink-0">
@@ -890,6 +925,8 @@ export function StateRepDetail() {
 
             <RepProfileCard
               photoUrl={member.photoUrl}
+              rawPhotoUrl={member.rawPhotoUrl}
+              memberId={member.id}
               name={member.name}
               belowPhoto={member.openstatesUrl && (
                 <a href={member.openstatesUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">

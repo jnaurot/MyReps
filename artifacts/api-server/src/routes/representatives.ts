@@ -222,6 +222,7 @@ async function fetchStateLegislators(
       office: person.chamber === "Senate" ? "State Senator" : "State Delegate",
       party: person.party,
       photoUrl: stateMemberPhotoUrl(person.id, !!person.photoUrl),
+      rawPhotoUrl: person.photoUrl ?? undefined,
       level: "state" as const,
       chamber: person.chamber,
       openstatesId: person.id,

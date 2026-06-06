@@ -23,6 +23,7 @@ export interface Representative {
   party?: string;
   phone?: string;
   photoUrl?: string;
+  rawPhotoUrl?: string;
   level: RepresentativeLevel;
   chamber?: string;
   urls?: string[];
@@ -357,6 +358,7 @@ export interface StateMemberDetail {
   email?: string;
   phone?: string;
   photoUrl?: string;
+  rawPhotoUrl?: string;
   openstatesUrl?: string;
   state?: string;
   jurisdiction?: string;

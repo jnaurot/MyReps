@@ -16,5 +16,6 @@ describe("representatives.ts photo caching source guards", () => {
   it("wraps state representative photos with the cached proxy URL", () => {
     const src = getRepresentativesSource();
     expect(src).toContain("photoUrl: stateMemberPhotoUrl(person.id, !!person.photoUrl),");
+    expect(src).toContain("rawPhotoUrl: person.photoUrl ?? undefined,");
   });
 });

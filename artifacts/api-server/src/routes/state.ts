@@ -48,10 +48,19 @@ const PLACEHOLDER_SVG = Buffer.from(
   "utf-8",
 );
 
-function sendPlaceholderPhoto(res: any) {
+const PHOTO_FETCH_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+  Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://politician.bawlmorean.com/",
+} as const;
+
+function sendPlaceholderPhoto(res: any, options?: { stale?: boolean }) {
   res
     .set("Content-Type", "image/svg+xml")
-    .set("Cache-Control", "public, max-age=86400")
+    .set("Cache-Control", "public, max-age=0, must-revalidate")
+    .set("X-Photo-Stale", options?.stale ? "1" : "0")
     .set("Content-Length", String(PLACEHOLDER_SVG.length))
     .send(PLACEHOLDER_SVG);
 }
@@ -381,6 +390,7 @@ router.get("/state/members/search", async (req, res) => {
       district: r.district,
       jurisdiction: r.jurisdiction,
       photoUrl: stateMemberPhotoUrl(r.id, !!r.photoUrl),
+      rawPhotoUrl: r.photoUrl ?? undefined,
       state: r.state,
     }));
 
@@ -406,6 +416,7 @@ router.get("/state/members/:memberId", async (req, res) => {
       legislator: {
         ...result.legislator,
         photoUrl: stateMemberPhotoUrl(memberId, !!result.legislator.photoUrl),
+        rawPhotoUrl: result.legislator.photoUrl ?? undefined,
       },
     });
   } catch (err) {
@@ -429,6 +440,7 @@ router.post("/state/members/:memberId/refresh", async (req, res) => {
       legislator: {
         ...result.legislator,
         photoUrl: stateMemberPhotoUrl(memberId, !!result.legislator.photoUrl),
+        rawPhotoUrl: result.legislator.photoUrl ?? undefined,
       },
     });
   } catch (err) {
@@ -1324,27 +1336,30 @@ async function handleStateMemberPhoto(req: any, res: any) {
       res
         .set("Content-Type", cached.contentType)
         .set("Cache-Control", "public, max-age=31536000, immutable")
+        .set("X-Photo-Stale", "0")
         .set("Content-Length", String(cached.buffer.length))
         .send(cached.buffer);
       return;
     }
 
-    const upstream = await fetch(row.photoUrl);
+    const upstream = await fetch(row.photoUrl, {
+      headers: PHOTO_FETCH_HEADERS,
+    });
     if (!upstream.ok) {
       req.log.warn({ memberId, photoUrl: row.photoUrl, status: upstream.status }, "Upstream photo unavailable; serving placeholder");
-      sendPlaceholderPhoto(res);
+      sendPlaceholderPhoto(res, { stale: true });
       return;
     }
 
     const contentType = upstream.headers.get("content-type") ?? "image/jpeg";
     if (!contentType.startsWith("image/")) {
-      sendPlaceholderPhoto(res);
+      sendPlaceholderPhoto(res, { stale: true });
       return;
     }
 
     const buffer = Buffer.from(await upstream.arrayBuffer());
     if (buffer.length === 0) {
-      sendPlaceholderPhoto(res);
+      sendPlaceholderPhoto(res, { stale: true });
       return;
     }
 
@@ -1353,11 +1368,12 @@ async function handleStateMemberPhoto(req: any, res: any) {
     res
       .set("Content-Type", contentType)
       .set("Cache-Control", "public, max-age=31536000, immutable")
+      .set("X-Photo-Stale", "0")
       .set("Content-Length", String(buffer.length))
       .send(buffer);
   } catch (err) {
     req.log.error({ err, memberId }, "State member photo failed; serving placeholder");
-    sendPlaceholderPhoto(res);
+    sendPlaceholderPhoto(res, { stale: true });
   }
 }
 

@@ -25,6 +25,7 @@ describe("state.ts photo caching source guards", () => {
     expect(src).toMatch(
       /photoUrl:\s*stateMemberPhotoUrl\(r\.id,\s*!!r\.photoUrl\)/,
     );
+    expect(src).toContain("rawPhotoUrl: r.photoUrl ?? undefined");
   });
 
   it("detail endpoint wraps legislator.photoUrl with stateMemberPhotoUrl in the response", () => {
@@ -32,6 +33,7 @@ describe("state.ts photo caching source guards", () => {
     expect(src).toMatch(
       /\/state\/members\/:memberId[\s\S]{0,400}photoUrl:\s*stateMemberPhotoUrl\(memberId,\s*!!result\.legislator\.photoUrl\)/,
     );
+    expect(src).toContain("rawPhotoUrl: result.legislator.photoUrl ?? undefined");
   });
 
   it("refresh endpoint wraps legislator.photoUrl with stateMemberPhotoUrl in the response", () => {
@@ -39,6 +41,7 @@ describe("state.ts photo caching source guards", () => {
     expect(src).toMatch(
       /\/state\/members\/:memberId\/refresh[\s\S]{0,400}photoUrl:\s*stateMemberPhotoUrl\(memberId,\s*!!result\.legislator\.photoUrl\)/,
     );
+    expect(src).toContain("rawPhotoUrl: result.legislator.photoUrl ?? undefined");
   });
 
   it("member-photo endpoint checks getCachedPhoto before hitting upstream", () => {
@@ -55,5 +58,11 @@ describe("state.ts photo caching source guards", () => {
   it("supports legacy path-based member-photo URLs", () => {
     const src = getStateSource();
     expect(src).toContain('router.get(/^\\/state\\/member-photo\\/(.+)$/');
+  });
+
+  it("marks placeholder responses as stale when upstream fetch fails", () => {
+    const src = getStateSource();
+    expect(src).toContain('.set("X-Photo-Stale", options?.stale ? "1" : "0")');
+    expect(src).toContain("sendPlaceholderPhoto(res, { stale: true });");
   });
 });
