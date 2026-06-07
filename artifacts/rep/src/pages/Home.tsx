@@ -423,7 +423,12 @@ export function Home() {
             Know Your Representatives
           </h1>
           <p className="hidden sm:block text-lg md:text-xl text-primary-foreground/80 mb-10 max-w-2xl mx-auto">
-            Discover who represents you at the federal and state levels. Track their bills, votes, and campaign finance.
+            <span className="block">
+              Discover who represents you at the federal and state levels.
+            </span>
+            <span className="block">
+              Track their bills, votes, and campaign finance.
+            </span>
           </p>
 
           <div className="flex flex-col gap-4 max-sm:gap-2 max-w-xl mx-auto">
@@ -434,9 +439,9 @@ export function Home() {
                   <Input
                     type="text"
                     placeholder={
-                      lastSearchedAddress
-                        ? (isMobile ? "Search bills or representatives" : "Search bills or representatives... then hit <return>")
-                        : (isMobile ? "Enter address, bill, or representative" : "Enter address, bill, or representative... then hit <return>")
+                      isMobile
+                        ? "Enter address, bill, or representative"
+                        : "Enter address, bill, or representative... then hit <return>"
                     }
                     className="pl-10 h-14 max-sm:h-10 text-lg max-sm:text-sm bg-background text-foreground border-0 shadow-lg rounded-xl focus-visible:ring-accent"
                     value={query}
