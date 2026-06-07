@@ -1,17 +1,18 @@
-import { useRef, useState, useEffect, useCallback, type ReactNode } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams, Link, useSearch } from "wouter";
 import {
   useGetStateBillDetail,
   getGetStateBillDetailQueryKey,
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ExternalLink, CheckCircle2, Circle, Bookmark, GripHorizontal } from "lucide-react";
+import { ChevronLeft, ExternalLink, CheckCircle2, Circle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RepNameLink } from "@/components/RepNameLink";
 import { partyColor, SummarySearch } from "@/lib/rep-utils";
 import { useBookmarks } from "@/hooks/useBookmarks";
+import { ResizableDetailCard } from "@/components/ResizableDetailCard";
 
 type BillActionSummary = {
   date: string;
@@ -226,95 +227,6 @@ function StateBillProgressBar({ stages }: {
   );
 }
 
-function ResizableDetailCard({
-  title,
-  children,
-  className = "",
-  profileHeight = 300,
-}: {
-  title: string;
-  children: ReactNode;
-  className?: string;
-  profileHeight?: number;
-}) {
-  const [height, setHeight] = useState<number | null>(null);
-  const [naturalHeight, setNaturalHeight] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const startYRef = useRef(0);
-  const startHeightRef = useRef(0);
-  const userDraggedRef = useRef(false);
-  const measuredRef = useRef(false);
-
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    const el = scrollRef.current;
-    const observer = new ResizeObserver(() => {
-      if (measuredRef.current) return;
-      const h = el.offsetHeight;
-      if (h > 0) {
-        measuredRef.current = true;
-        setNaturalHeight(h);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!userDraggedRef.current && naturalHeight > 0) {
-      setHeight(Math.min(naturalHeight, profileHeight));
-    }
-  }, [naturalHeight, profileHeight]);
-
-  const minHeight = Math.min(naturalHeight, profileHeight);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    userDraggedRef.current = true;
-    setIsDragging(true);
-    startYRef.current = e.clientY;
-    startHeightRef.current = height ?? naturalHeight;
-  }, [height, naturalHeight]);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      const delta = e.clientY - startYRef.current;
-      const newHeight = Math.min(naturalHeight, Math.max(minHeight, startHeightRef.current + delta));
-      setHeight(newHeight);
-    };
-    const handleMouseUp = () => setIsDragging(false);
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging, minHeight, naturalHeight]);
-
-  return (
-    <Card className={`overflow-hidden flex flex-col ${className}`}>
-      <CardHeader className="pb-3 shrink-0">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent
-        ref={scrollRef}
-        className={`pt-0 pr-3 ${height !== null && height < naturalHeight ? "overflow-y-auto" : "overflow-hidden"}`}
-        style={height !== null ? { height } : undefined}
-      >
-        {children}
-      </CardContent>
-      <div
-        className="shrink-0 h-4 flex items-center justify-center cursor-ns-resize bg-muted/30 hover:bg-muted/50 transition-colors"
-        onMouseDown={handleMouseDown}
-      >
-        <GripHorizontal className="h-3 w-3 text-muted-foreground/50" />
-      </div>
-    </Card>
-  );
-}
-
 export function StateBillDetail() {
   const { billId } = useParams<{ billId: string }>();
   const apiBillId = encodeURIComponent(billId);
@@ -434,7 +346,7 @@ export function StateBillDetail() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {bill.sponsors && bill.sponsors.length > 0 && (
-                <ResizableDetailCard title={`Sponsor${bill.sponsors.length > 1 ? "s" : ""}`} profileHeight={profileHeight}>
+                <ResizableDetailCard title={`Sponsor${bill.sponsors.length > 1 ? "s" : ""}`} maxHeight={profileHeight}>
                   <div className="space-y-2">
                     {bill.sponsors.map((s, i) => (
                       <div key={i} className="flex items-center justify-between">
@@ -449,7 +361,7 @@ export function StateBillDetail() {
               )}
 
               {bill.committees && bill.committees.length > 0 && (
-                <ResizableDetailCard title="Committees" profileHeight={profileHeight}>
+                <ResizableDetailCard title="Committees" maxHeight={profileHeight}>
                   <div className="space-y-2">
                     {bill.committees.map((c, i) => (
                       <div key={i} className="text-sm">
@@ -463,8 +375,8 @@ export function StateBillDetail() {
             </div>
 
             {bill.cosponsors && bill.cosponsors.length > 0 && (
-              <ResizableDetailCard title={`Cosponsors (${bill.cosponsors.length})`} profileHeight={profileHeight}>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+              <ResizableDetailCard title={`Cosponsors (${bill.cosponsors.length})`} maxHeight={profileHeight}>
+                <div className="grid grid-cols-1 gap-y-1 sm:grid-cols-2 sm:gap-x-6">
                   {bill.cosponsors.map((s, i) => (
                     <div key={i} className="flex items-center justify-between py-1.5 border-b last:border-0">
                       <RepNameLink name={s.name} openstatesId={s.openstatesId} />
@@ -478,7 +390,7 @@ export function StateBillDetail() {
             )}
 
             {bill.votes && bill.votes.length > 0 && (
-              <ResizableDetailCard title="Votes" profileHeight={profileHeight}>
+              <ResizableDetailCard title="Votes" maxHeight={profileHeight}>
                 <div className="space-y-3">
                   {[...bill.votes]
                     .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
@@ -532,7 +444,7 @@ export function StateBillDetail() {
             )}
 
             {bill.actions && bill.actions.length > 0 && (
-              <ResizableDetailCard title="Legislative History" profileHeight={profileHeight}>
+              <ResizableDetailCard title="Legislative History" maxHeight={profileHeight}>
                 <div className="space-y-3">
                   {(() => {
                     const seen = new Set<string>();
