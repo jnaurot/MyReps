@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link, useSearch } from "wouter";
+import { useParams, Link, useSearch, useSearchParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetStateMember,
@@ -52,6 +52,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
 import { billFromParam, stateBillPath } from "@/lib/routes";
+import { buildVoteSearch, parseVoteSearchState, type VoteFilter } from "@/lib/voteSearchParams";
 
 function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; jurisdiction?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
   const isMobile = useIsMobile();
@@ -357,27 +358,16 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
 function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: { memberId: string; jurisdiction?: string; memberName?: string; memberChamber?: string }) {
   const isMobile = useIsMobile();
   const pageSearch = useSearch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialVoteState = parseVoteSearchState(pageSearch);
   const initialParams = new URLSearchParams(pageSearch);
-  const initialOffsetParam = Number(initialParams.get("offset") ?? "0");
-  const initialOffset =
-    Number.isFinite(initialOffsetParam) && initialOffsetParam >= 0
-      ? initialOffsetParam
-      : 0;
-  const initialFilterParam = initialParams.get("filter");
-  const initialFilter =
-    initialFilterParam === "yea" ||
-    initialFilterParam === "nay" ||
-    initialFilterParam === "present" ||
-    initialFilterParam === "not-voting"
-      ? initialFilterParam
-      : "all";
   const [offset, setOffset] = useState(() => {
-    return initialOffset;
+    return initialVoteState.offset;
   });
-  const [filter, setFilter] = useState<"all" | "yea" | "nay" | "present" | "not-voting">(() => initialFilter);
+  const [filter, setFilter] = useState<VoteFilter>(() => initialVoteState.filter);
   const [searchQuery, setSearchQuery] = useState(initialParams.get("q") ?? "");
   const [mobileRestoreTargetOffset, setMobileRestoreTargetOffset] = useState(
-    () => initialOffset,
+    () => initialVoteState.offset,
   );
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const listViewportRef = useRef<HTMLDivElement | null>(null);
@@ -416,6 +406,15 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
   }, [filterKey, isMobile]);
 
   // Mobile: append new page to accumulated list
+  useEffect(() => {
+    if (!isMobile) return;
+    if (isLoading || isPlaceholderData) return;
+    if (allVotes.length > 0) return;
+    if (votes.length === 0) return;
+    appendedOffsetRef.current = new Set([offset]);
+    setAllVotes(votes);
+  }, [allVotes.length, isLoading, isMobile, isPlaceholderData, offset, votes]);
+
   useEffect(() => {
     if (!isMobile) return;
     if (isLoading || isPlaceholderData) return;
@@ -471,7 +470,13 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
     setLastVisible(Math.min(visible, allVotes.length));
   };
 
-  const votesToRender = isMobile ? (allVotes as typeof votes) : votes;
+  const shouldUseCurrentPageVotes =
+    isMobile && allVotes.length === 0 && !isLoading && !isPlaceholderData;
+  const votesToRender = isMobile
+    ? (
+        shouldUseCurrentPageVotes ? votes : allVotes
+      ) as typeof votes
+    : votes;
   const returnParams = new URLSearchParams(pageSearch);
   const returnPath = `/rep/state/${memberId}?${returnParams.toString()}`;
   const restorationScrollStorageKey = `scroll:${returnPath}:votes`;
@@ -486,32 +491,44 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
     ? billFromParam(backPath, memberName)
     : `?from=${encodeURIComponent(backPath)}`;
 
+  const replaceVoteSearch = (patch: {
+    filter?: VoteFilter;
+    offset?: number;
+    q?: string;
+  }) => {
+    const currentSearch = searchParams.toString();
+    const nextSearch = buildVoteSearch(
+      currentSearch ? `?${currentSearch}` : "",
+      { tab: "votes", ...patch },
+    );
+    const normalizedCurrentSearch = currentSearch ? `?${currentSearch}` : "";
+    if (nextSearch === normalizedCurrentSearch) return;
+    setSearchParams(new URLSearchParams(nextSearch), { replace: true });
+  };
+
   useEffect(() => {
     restoredScrollRef.current = false;
   }, [restorationScrollStorageKey]);
 
   useEffect(() => {
-    const params = new URLSearchParams(pageSearch);
-    const nextOffset = Number(params.get("offset") ?? "0");
-    const nextFilter = params.get("filter");
-    const normalizedOffset =
-      Number.isFinite(nextOffset) && nextOffset >= 0 ? nextOffset : 0;
-    setMobileRestoreTargetOffset(normalizedOffset);
-    setOffset(isMobile && normalizedOffset > 0 ? 0 : normalizedOffset);
-    setFilter(
-      nextFilter === "yea" ||
-        nextFilter === "nay" ||
-        nextFilter === "present" ||
-        nextFilter === "not-voting"
-        ? nextFilter
-        : "all",
-    );
-    setSearchQuery(params.get("q") ?? "");
-    if (isMobile) {
-      setAllVotes([]);
-      appendedOffsetRef.current = new Set();
-    }
-  }, [pageSearch, isMobile]);
+    const nextVoteState = parseVoteSearchState(pageSearch);
+    setMobileRestoreTargetOffset(nextVoteState.offset);
+    setOffset(nextVoteState.offset);
+    setFilter(nextVoteState.filter);
+    setSearchQuery(nextVoteState.q);
+  }, [pageSearch]);
+
+  useEffect(() => {
+    if (debouncedSearchQuery === initialVoteState.q) return;
+    setOffset(0);
+    setMobileRestoreTargetOffset(0);
+    replaceVoteSearch({ q: debouncedSearchQuery, offset: 0 });
+  }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    if (offset === initialVoteState.offset) return;
+    replaceVoteSearch({ offset });
+  }, [offset]);
 
   useEffect(() => {
     if (!isMobile) return;
@@ -565,7 +582,7 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
     restorationScrollStorageKey,
   ]);
 
-  const voteFilters: { value: typeof filter; label: string }[] = [
+  const voteFilters: { value: VoteFilter; label: string }[] = [
     { value: "all", label: "All" },
     { value: "yea", label: "Yea" },
     { value: "nay", label: "Nay" },
@@ -590,7 +607,12 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
             key={f.value}
             size="sm"
             variant={filter === f.value ? "default" : "outline"}
-            onClick={() => { setFilter(f.value); setOffset(0); }}
+            onClick={() => {
+              setFilter(f.value);
+              setOffset(0);
+              setMobileRestoreTargetOffset(0);
+              replaceVoteSearch({ filter: f.value, offset: 0 });
+            }}
           >
             {f.label}
           </Button>

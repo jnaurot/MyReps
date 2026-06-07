@@ -6,7 +6,7 @@ dev*.sh
 *.dump
 .claude
 CLAUDE.MD
-
+docs
 
 # compiled output
 dist
