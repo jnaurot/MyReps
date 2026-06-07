@@ -4,6 +4,8 @@
 script
 dev*.sh
 *.dump
+.claude
+CLAUDE.MD
 
 
 # compiled output
