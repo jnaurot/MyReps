@@ -50,6 +50,11 @@ const STATE_NAMES: Record<string, string> = {
   WI: "Wisconsin",
   WY: "Wyoming",
   DC: "District of Columbia",
+  PR: "Puerto Rico",
+  GU: "Guam",
+  VI: "U.S. Virgin Islands",
+  AS: "American Samoa",
+  MP: "Northern Mariana Islands",
 };
 
 export function normalizeCensusDistrict(value: unknown): string | null {
@@ -73,7 +78,11 @@ const STATE_CODES: Record<string, string> = Object.fromEntries(
 );
 
 export function stateNameToCode(name: string): string | null {
-  return STATE_CODES[name.toLowerCase()] ?? null;
+  const normalized = name.toLowerCase();
+  return (
+    STATE_CODES[normalized] ??
+    (normalized === "virgin islands" ? "VI" : null)
+  );
 }
 
 export function toBrowserPhotoUrl(url: string | null | undefined): string | undefined {

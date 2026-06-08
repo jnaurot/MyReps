@@ -55,6 +55,11 @@ export const US_STATES: StateInfo[] = [
   { code: "WI", name: "Wisconsin" },
   { code: "WY", name: "Wyoming" },
   { code: "DC", name: "District of Columbia" },
+  { code: "PR", name: "Puerto Rico" },
+  { code: "GU", name: "Guam" },
+  { code: "VI", name: "U.S. Virgin Islands" },
+  { code: "AS", name: "American Samoa" },
+  { code: "MP", name: "Northern Mariana Islands" },
 ];
 
 export function getStateName(code?: string | null): string | undefined {
@@ -66,6 +71,7 @@ export function getStateCode(nameOrCode?: string | null): string | undefined {
   if (!nameOrCode) return undefined;
   const upper = nameOrCode.toUpperCase();
   if (US_STATES.find((s) => s.code === upper)) return upper;
+  if (upper === "VIRGIN ISLANDS") return "VI";
   return US_STATES.find((s) => s.name.toUpperCase() === upper)?.code;
 }
 

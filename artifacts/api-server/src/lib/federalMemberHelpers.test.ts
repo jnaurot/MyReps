@@ -8,7 +8,11 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { formatCongressMemberName, normalizeCongressTerms } from "./federalMemberHelpers";
+import {
+  formatCongressMemberName,
+  normalizeCongressMember,
+  normalizeCongressTerms,
+} from "./federalMemberHelpers";
 
 // ── Unit tests — formatCongressMemberName ─────────────────────────────────────
 
@@ -81,6 +85,97 @@ describe("normalizeCongressTerms", () => {
   });
 });
 
+describe("normalizeCongressMember", () => {
+  it("normalizes a list-endpoint payload into canonical storage shape", () => {
+    const result = normalizeCongressMember({
+      bioguideId: "V000128",
+      name: "Van Hollen, Chris",
+      partyName: "Democratic",
+      state: "MD",
+      district: null,
+      nextElection: "2028",
+      currentMember: true,
+      depiction: { imageUrl: "https://example.com/chris.jpg" },
+      terms: { item: [{ chamber: "Senate", stateCode: "MD" }] },
+    });
+
+    expect(result).toMatchObject({
+      bioguideId: "V000128",
+      name: "Chris Van Hollen",
+      party: "Democratic",
+      state: "MD",
+      chamber: "Senate",
+      district: null,
+      photoUrl: "https://example.com/chris.jpg",
+      inOffice: true,
+      nextElection: "2028",
+      terms: 1,
+    });
+  });
+
+  it("normalizes a detail-endpoint payload with full state name into postal code", () => {
+    const result = normalizeCongressMember({
+      bioguideId: "V000128",
+      state: "Maryland",
+      directOrderName: "Chris Van Hollen",
+      invertedOrderName: "Van Hollen, Chris",
+      currentMember: true,
+      officialWebsiteUrl: "https://www.vanhollen.senate.gov",
+      depiction: { imageUrl: "https://www.congress.gov/img/member/v000128_200.jpg" },
+      addressInformation: {
+        phoneNumber: "(202) 224-4654",
+        officeAddress: "730 Hart Senate Office Building  Washington, DC 20510",
+      },
+      partyHistory: [{ partyName: "Democratic" }],
+      terms: [{ chamber: "Senate", stateName: "Maryland" }],
+    });
+
+    expect(result).toMatchObject({
+      bioguideId: "V000128",
+      name: "Chris Van Hollen",
+      party: "Democratic",
+      state: "MD",
+      chamber: "Senate",
+      phone: "(202) 224-4654",
+      website: "https://www.vanhollen.senate.gov",
+      photoUrl: "https://www.congress.gov/img/member/v000128_200.jpg",
+      inOffice: true,
+      terms: 1,
+    });
+  });
+
+  it("normalizes territorial names to the requested abbreviations", () => {
+    const result = normalizeCongressMember({
+      bioguideId: "P000610",
+      directOrderName: "Stacey E. Plaskett",
+      state: "U.S. Virgin Islands",
+      currentMember: true,
+      terms: [{ chamber: "House of Representatives", stateName: "U.S. Virgin Islands" }],
+    });
+
+    expect(result).toMatchObject({
+      bioguideId: "P000610",
+      name: "Stacey E. Plaskett",
+      state: "VI",
+      chamber: "House",
+      inOffice: true,
+      terms: 1,
+    });
+  });
+
+  it("normalizes 'Virgin Islands' alias to VI", () => {
+    const result = normalizeCongressMember({
+      bioguideId: "P000610",
+      directOrderName: "Stacey E. Plaskett",
+      state: "Virgin Islands",
+      currentMember: true,
+      terms: [{ chamber: "House of Representatives", stateName: "Virgin Islands" }],
+    });
+
+    expect(result.state).toBe("VI");
+  });
+});
+
 // ── Source guards — inline helpers must be gone from callers ──────────────────
 
 describe("federal.ts source guards — helpers removed", () => {
@@ -99,6 +194,7 @@ describe("federal.ts source guards — helpers removed", () => {
 
   it("imports from federalMemberHelpers", () => {
     expect(src).toContain("federalMemberHelpers");
+    expect(src).toContain("normalizeCongressMember");
   });
 });
 
@@ -118,5 +214,6 @@ describe("ingestFederalMembers.ts source guards — helpers removed", () => {
 
   it("imports from federalMemberHelpers", () => {
     expect(src).toContain("federalMemberHelpers");
+    expect(src).toContain("normalizeCongressMember");
   });
 });

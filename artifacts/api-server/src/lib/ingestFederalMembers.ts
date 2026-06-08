@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { max, sql, eq } from "drizzle-orm";
 import { db, federalMembersTable } from "@workspace/db";
-import { stateNameToCode } from "../routes/representativesUtils";
 import { fetchWithTimeout as fetch } from "./http";
 import { logger } from "./logger";
 
@@ -10,16 +9,9 @@ const BASE = "https://api.congress.gov/v3";
 const CONGRESS_API_KEY = process.env.CONGRESS_API_KEY;
 
 import {
-  formatCongressMemberName as formatName,
+  normalizeCongressMember,
   normalizeCongressTerms as normalizeTerms,
 } from "./federalMemberHelpers";
-
-function normalizeChamber(member: any): string | null {
-  const chamber = normalizeTerms(member).slice(-1)[0]?.chamber ?? "";
-  if (chamber === "Senate") return "Senate";
-  if (chamber.toLowerCase().includes("house")) return "House";
-  return null;
-}
 
 function getLogFilePath(): string {
   const logDir = process.env.LOG_DIR ?? "./logs";
@@ -75,22 +67,25 @@ export async function ingestAllFederalMembers(): Promise<{ count: number }> {
 
   const values = raw
     .filter((m) => normalizeTerms(m).some((t) => !t.endYear))
-    .map((m) => ({
-      bioguideId: m.bioguideId as string,
-      name: formatName(m.name ?? ""),
-      party: (m.partyName as string | null) ?? null,
-      state: stateNameToCode(m.state ?? "") ?? (m.state as string | null) ?? null,
-      chamber: normalizeChamber(m),
-      district: m.district != null ? String(m.district) : null,
-      photoUrl: (m.depiction?.imageUrl as string | null) ?? null,
-      nextElection: (m.nextElection as string | null) ?? null,
-      inOffice: true,
-      terms: normalizeTerms(m).length,
-      phone: null as null,
-      website: null as null,
-      raw: m as object,
-      fetchedAt: new Date(),
-    }));
+    .map((m) => {
+      const normalized = normalizeCongressMember(m);
+      return {
+        bioguideId: normalized.bioguideId,
+        name: normalized.name,
+        party: normalized.party,
+        state: normalized.state,
+        chamber: normalized.chamber,
+        district: normalized.district,
+        photoUrl: normalized.photoUrl,
+        nextElection: normalized.nextElection,
+        inOffice: normalized.inOffice ?? true,
+        terms: normalized.terms,
+        phone: normalized.phone,
+        website: normalized.website,
+        raw: m as object,
+        fetchedAt: new Date(),
+      };
+    });
 
   await db.transaction(async (tx) => {
     // Mark all previously in-office members as out before upserting the fresh list

@@ -272,6 +272,18 @@ router.get("/representatives", async (req, res) => {
 
     const representatives = [...federalReps, ...stateResult.stateReps];
 
+    req.log.info(
+      {
+        address,
+        normalizedAddress: geo.normalizedAddress,
+        stateCode,
+        stateSenateDistrict: geo.stateSenateDistrict,
+        stateHouseDistrict: geo.stateHouseDistrict,
+        representatives,
+      },
+      "Address lookup returning representatives",
+    );
+
     return res.json({
       address,
       normalizedAddress: geo.normalizedAddress,

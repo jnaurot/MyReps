@@ -67,6 +67,7 @@ import { dedupeAndSortFederalBillActions } from "../lib/federalBillActions";
 import { dedupeFederalBillVotes } from "../lib/federalBillVotes";
 import { shouldRefetchField } from "../lib/summaryCacheUtils";
 import { normalizeSummaryText } from "../lib/summaryText";
+import { normalizeCongressMember } from "../lib/federalMemberHelpers";
 
 const router = Router();
 
@@ -198,19 +199,19 @@ function memberPhotoUrl(bioguideId: string, hasPhoto: boolean): string | undefin
 }
 
 function normalizeMemberFromRaw(m: any) {
+  const normalized = normalizeCongressMember(m);
   return {
-    bioguideId: m.bioguideId ?? "",
-    name: m.directOrderName ?? m.invertedOrderName ?? "",
-    party: m.partyHistory?.[0]?.partyName,
-    state: m.state,
-    chamber: normalizeTermsItem(m).slice(-1)[0]?.chamber ?? undefined,
-    district: m.district != null ? String(m.district) : undefined,
-    phone: m.officeAddress,
-    website: m.officialWebsiteUrl,
-    photoUrl: memberPhotoUrl(m.bioguideId ?? "", !!m.depiction?.imageUrl),
-    terms: normalizeTermsItem(m).length,
-    inOffice: m.currentMember,
-    nextElection: m.nextElection,
+    ...normalized,
+    party: normalized.party ?? undefined,
+    state: normalized.state ?? undefined,
+    chamber: normalized.chamber ?? undefined,
+    district: normalized.district ?? undefined,
+    phone: normalized.phone ?? undefined,
+    website: normalized.website ?? undefined,
+    photoUrl: memberPhotoUrl(m.bioguideId ?? "", !!normalized.photoUrl),
+    terms: normalized.terms ?? undefined,
+    inOffice: normalized.inOffice ?? undefined,
+    nextElection: normalized.nextElection ?? undefined,
   };
 }
 
@@ -414,7 +415,7 @@ async function fetchAndCacheFederalMember(bioguideId: string, logger?: any) {
   );
   const data = await congressFetch(`/member/${bioguideId}`, {}, logger);
   const m = data.member ?? {};
-  const mapped = normalizeMemberFromRaw(m);
+  const mapped = normalizeCongressMember(m);
 
   await db
     .insert(federalMembersTable)
@@ -521,7 +522,7 @@ async function fetchAndCacheFederalMember(bioguideId: string, logger?: any) {
     );
   }
 
-  return mapped;
+  return normalizeMemberFromRaw(m);
 }
 
 // Proxy congress.gov member photos with a 1-year immutable cache so the
@@ -697,6 +698,17 @@ router.get("/federal/members/search", async (req, res) => {
 
     const totalCount = Number(countResult[0]?.count ?? 0);
     const members = rows.map(mapDbRowToMember);
+
+    req.log.info(
+      {
+        q,
+        offset,
+        limit,
+        totalCount,
+        members,
+      },
+      "Federal member search returning representatives",
+    );
 
     return res.json({ members, totalCount, offset });
   } catch (err) {

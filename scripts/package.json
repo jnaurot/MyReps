@@ -8,6 +8,7 @@
   },
   "scripts": {
     "backfill:federal-bill-stages": "tsx ./src/backfillFederalBillStageFlags.ts",
+    "backfill:federal-member-state-codes": "tsx ./src/backfillFederalMemberStateCodes.ts",
     "backfill:legislation-stages": "tsx ./src/backfillLegislationStages.ts",
     "backfill:not-agreed-to": "tsx ./src/backfillNotAgreedTo.ts",
     "backfill:state-bill-sponsorships": "tsx ./src/backfillStateBillSponsorshipsAndActions.ts",

@@ -410,6 +410,18 @@ router.get("/state/members/search", async (req, res) => {
       state: r.state,
     }));
 
+    req.log.info(
+      {
+        q,
+        jurisdiction,
+        offset,
+        limit,
+        totalCount,
+        members,
+      },
+      "State member search returning representatives",
+    );
+
     return res.json({ members, totalCount, offset });
   } catch (err) {
     req.log.error({ err }, "Error searching state legislators");
