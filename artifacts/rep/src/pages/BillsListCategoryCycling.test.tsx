@@ -85,7 +85,7 @@ describe("BillsList source — mobile accumulation fix", () => {
 });
 
 // ── Behavioral tests ─────────────────────────────────────────────────────────
-describe("BillsList mobile accumulation — cycling categories with Active Bills status filter", () => {
+describe("BillsList mobile accumulation — cycling categories with Active status filter", () => {
   it("cycle 1: All → Bills → Resolutions → Amendments shows correct counts", () => {
     const { result, rerender } = renderHook(
       (props: Parameters<typeof useMobileAccumulation>[0]) =>

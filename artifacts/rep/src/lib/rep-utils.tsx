@@ -6,8 +6,8 @@ import { ChevronUp, ChevronDown, X, Search, GripHorizontal } from "lucide-react"
 import { useResizableContentHeight } from "@/hooks/useResizableContentHeight";
 
 export const BILL_STAGE_OPTIONS = [
-  "All Bills",
-  "Active Bills",
+  "All Statuses",
+  "Active",
   "Became Law/Adopted",
   "Dead",
 ] as const;
@@ -15,15 +15,15 @@ export const BILL_STAGE_OPTIONS = [
 export type BillStage = (typeof BILL_STAGE_OPTIONS)[number];
 
 export const BILL_STAGE_QUERY_KEYS: Record<BillStage, string> = {
-  "All Bills": "all",
-  "Active Bills": "active",
+  "All Statuses": "all",
+  Active: "active",
   "Became Law/Adopted": "signed_enacted",
   Dead: "dead",
 };
 
 export function buildBillStageQuery(selectedStages: BillStage[]): string | undefined {
   const queryStages = selectedStages.filter(
-    (stage): stage is Exclude<BillStage, "All Bills"> => stage !== "All Bills",
+    (stage): stage is Exclude<BillStage, "All Statuses"> => stage !== "All Statuses",
   );
   return queryStages.length > 0
     ? queryStages.map((stage) => BILL_STAGE_QUERY_KEYS[stage]).join(",")
@@ -34,7 +34,7 @@ export function toggleBillStageSelection(
   selectedStages: BillStage[],
   stage: BillStage,
 ): BillStage[] {
-  if (stage === "All Bills") return [];
+  if (stage === "All Statuses") return [];
   return selectedStages.includes(stage) ? [] : [stage];
 }
 

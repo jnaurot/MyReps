@@ -1,6 +1,6 @@
 // Component-level regression test for the mobile bill accumulation bug.
 // Renders BillsList in mobile mode, cycles through All/Bills/Resolutions/Amendments
-// twice with an Active Bills filter active, and asserts:
+// twice with an Active filter active, and asserts:
 //   1. The number of rendered bill-item DOM elements matches the API totalCount.
 //   2. The mobile counter text (e.g. "2/2") matches — denominator comes from API,
 //      numerator from allBills.length — so a mismatch (e.g. "3/2") fails the test.
@@ -121,8 +121,8 @@ describe("BillsList — rendered items match totalCount after cycling categories
       { wrapper },
     );
 
-    // Choose "Active Bills"
-    fireEvent.click(screen.getByRole("button", { name: "Active Bills" }));
+    // Choose "Active"
+    fireEvent.click(screen.getByRole("button", { name: "Active" }));
 
     // ── Cycle 1 ──────────────────────────────────────────────────────────────
     await go(/^All \(/, 4);         // All: 4 items → counter "4/4"

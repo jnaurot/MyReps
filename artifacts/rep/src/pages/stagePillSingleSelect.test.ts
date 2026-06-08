@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BILL_STAGE_OPTIONS = [
-  "All Bills",
-  "Active Bills",
+  "All Statuses",
+  "Active",
   "Became Law/Adopted",
   "Dead",
 ] as const;
@@ -12,8 +12,8 @@ const BILL_STAGE_OPTIONS = [
 type BillStage = (typeof BILL_STAGE_OPTIONS)[number];
 
 const BILL_STAGE_QUERY_KEYS: Record<BillStage, string> = {
-  "All Bills": "all",
-  "Active Bills": "active",
+  "All Statuses": "all",
+  Active: "active",
   "Became Law/Adopted": "signed_enacted",
   Dead: "dead",
 };
@@ -25,25 +25,25 @@ function pageSource(filename: string): string {
 }
 
 function singleSelectToggle(prev: BillStage[], stage: BillStage): BillStage[] {
-  if (stage === "All Bills") return [];
+  if (stage === "All Statuses") return [];
   return prev.includes(stage) ? [] : [stage];
 }
 
 describe("singleSelectToggle — simplified bill status reducer behaviour", () => {
   it("selecting a stage from empty state returns [stage]", () => {
-    expect(singleSelectToggle([], "Active Bills")).toEqual(["Active Bills"]);
+    expect(singleSelectToggle([], "Active")).toEqual(["Active"]);
   });
 
   it("selecting a different stage replaces the current selection", () => {
-    expect(singleSelectToggle(["Active Bills"], "Became Law/Adopted")).toEqual(["Became Law/Adopted"]);
+    expect(singleSelectToggle(["Active"], "Became Law/Adopted")).toEqual(["Became Law/Adopted"]);
   });
 
   it("selecting the currently active stage deselects it (returns [])", () => {
     expect(singleSelectToggle(["Dead"], "Dead")).toEqual([]);
   });
 
-  it("selecting All Bills clears any active stage selection", () => {
-    expect(singleSelectToggle(["Dead"], "All Bills")).toEqual([]);
+  it("selecting All Statuses clears any active stage selection", () => {
+    expect(singleSelectToggle(["Dead"], "All Statuses")).toEqual([]);
   });
 
   it("result never contains more than one stage", () => {
@@ -72,8 +72,8 @@ describe("BILL_STAGE_QUERY_KEYS", () => {
   });
 
   it("API keys match the simplified server filters", () => {
-    expect(BILL_STAGE_QUERY_KEYS["All Bills"]).toBe("all");
-    expect(BILL_STAGE_QUERY_KEYS["Active Bills"]).toBe("active");
+    expect(BILL_STAGE_QUERY_KEYS["All Statuses"]).toBe("all");
+    expect(BILL_STAGE_QUERY_KEYS["Active"]).toBe("active");
     expect(BILL_STAGE_QUERY_KEYS["Became Law/Adopted"]).toBe("signed_enacted");
     expect(BILL_STAGE_QUERY_KEYS["Dead"]).toBe("dead");
   });

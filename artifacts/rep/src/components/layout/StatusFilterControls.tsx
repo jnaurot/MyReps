@@ -15,7 +15,7 @@ export function StatusStagePills({
     <FilterBar className={`flex flex-wrap gap-2 ${className ?? ""}`}>
       {BILL_STAGE_OPTIONS.map((stage) => {
         const selected =
-          stage === "All Bills"
+          stage === "All Statuses"
             ? selectedStages.length === 0
             : selectedStages.includes(stage);
         return (
