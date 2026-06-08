@@ -3,8 +3,6 @@ import { Link, useSearch } from "wouter";
 import {
   useGetFederalBills,
   getGetFederalBillsQueryKey,
-  useSearchFederalBills,
-  getSearchFederalBillsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,36 +61,37 @@ export function FederalBills() {
       : undefined;
 
   const { data, isLoading, isPlaceholderData } = useGetFederalBills(
-    { chamber, policyArea, offset, limit, ...(stageQuery ? { stages: stageQuery } : {}) },
+    {
+      q: searchQuery || undefined,
+      chamber,
+      policyArea,
+      offset,
+      limit,
+      ...(stageQuery ? { stages: stageQuery } : {}),
+    },
     {
       query: {
-        queryKey: getGetFederalBillsQueryKey({ chamber, policyArea, offset, limit, stages: stageQuery }),
+        queryKey: getGetFederalBillsQueryKey({
+          q: searchQuery || undefined,
+          chamber,
+          policyArea,
+          offset,
+          limit,
+          stages: stageQuery,
+        }),
         placeholderData: (previous) => previous,
       },
     },
   );
-  const searchParams = { q: searchQuery, policyArea, offset, limit };
-  const {
-    data: searchData,
-    isLoading: isSearchLoading,
-    isPlaceholderData: isSearchPlaceholderData,
-  } = useSearchFederalBills(searchParams, {
-    query: {
-      enabled: searchQuery.length > 0 || !!policyArea,
-      queryKey: getSearchFederalBillsQueryKey(searchParams),
-      placeholderData: (previous) => previous,
-    },
-  });
 
   const handleChamberChange = (v: string) => {
     setChamber(v as Chamber);
     setOffset(0);
   };
-  const useSearchResults = searchQuery.length > 0 || !!policyArea;
-  const visibleBills = useSearchResults ? (searchData?.bills ?? []) : (data?.bills ?? []);
-  const effectiveTotalCount = useSearchResults ? (searchData?.totalCount ?? 0) : (data?.totalCount ?? 0);
-  const loadingBase = useSearchResults ? isSearchLoading : isLoading;
-  const isPlaceholderDataBase = useSearchResults ? isSearchPlaceholderData : isPlaceholderData;
+  const visibleBills = data?.bills ?? [];
+  const effectiveTotalCount = data?.totalCount ?? 0;
+  const loadingBase = isLoading;
+  const isPlaceholderDataBase = isPlaceholderData;
   const filterKey = `${chamber}|${searchQuery}|${stageQuery ?? ""}|${policyArea}`;
 
   const backPathParams = new URLSearchParams();

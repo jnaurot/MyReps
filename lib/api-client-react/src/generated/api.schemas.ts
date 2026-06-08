@@ -605,6 +605,7 @@ export const GetFederalMemberSenateVotesFilter = {
 } as const;
 
 export type GetFederalBillsParams = {
+  q?: string;
   chamber?: GetFederalBillsChamber;
   policyArea?: string;
   offset?: number;

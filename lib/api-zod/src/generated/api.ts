@@ -435,6 +435,7 @@ export const getFederalBillsQueryOffsetDefault = 0;
 export const getFederalBillsQueryLimitDefault = 20;
 
 export const GetFederalBillsQueryParams = zod.object({
+  q: zod.coerce.string().optional(),
   chamber: zod.enum(["house", "senate", "both"]).default(getFederalBillsQueryChamberDefault),
   policyArea: zod.coerce.string().optional(),
   offset: zod.coerce.number().default(getFederalBillsQueryOffsetDefault),

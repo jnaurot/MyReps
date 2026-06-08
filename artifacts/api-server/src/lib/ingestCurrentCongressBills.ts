@@ -9,7 +9,10 @@ import {
   getFederalLegislationDisplayNumber,
   getFederalLegislationTitle,
 } from "./federalMemberLegislation";
-import { computeLegislationStageFlags } from "./legislationStages";
+import {
+  computeLegislationStageFlags,
+  finalizeFederalStageFlags,
+} from "./legislationStages";
 import { upsertFederalBill } from "./upsertFederalBill";
 import { getCurrentCongressNumber } from "./federalBillProgress";
 import { fetchWithTimeout as fetch } from "./http";
@@ -85,13 +88,14 @@ async function ingestCongressBillsPage(
         b.subjects?.legislativeSubjects?.item?.map((s: any) => s.name ?? s) ??
         b.subjects?.item ??
         (Array.isArray(b.subjects) ? b.subjects : []);
-      const stageFlags = computeLegislationStageFlags({
-        latestAction: latestActionText,
-        introducedDate: b.introducedDate ?? null,
-      });
-      if (congress < currentCongress && !stageFlags.signed_enacted) {
-        stageFlags.dead = true;
-      }
+      const stageFlags = finalizeFederalStageFlags(
+        computeLegislationStageFlags({
+          latestAction: latestActionText,
+          introducedDate: b.introducedDate ?? null,
+        }),
+        congress,
+        currentCongress,
+      );
 
       await upsertFederalBill({
         id: billId,

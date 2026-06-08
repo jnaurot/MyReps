@@ -329,6 +329,10 @@ paths:
       tags: [federal]
       summary: Get bills currently being considered in Congress
       parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
         - name: chamber
           in: query
           schema:

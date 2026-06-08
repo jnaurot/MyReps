@@ -1,3 +1,5 @@
+import { isEnactedOutcomeText } from "./legislationStages";
+
 type BillActionItem = { date?: string; text?: string; type?: string };
 
 export function getCurrentCongressNumber(currentYear = new Date().getFullYear()) {
@@ -25,7 +27,7 @@ export function computeFederalBillProgress({
   const signed =
     hasLaw ||
     (types.some((t) => t === "becamelaw" || t === "president") &&
-      /(signed|became public law|became law|public law)/i.test(joined));
+      /signed|became public law|became private law|became law|public law|private law/i.test(joined));
   const committee =
     types.some((t) => t === "introreferral" || t === "committees") ||
     /(committee|referred|reported)/i.test(joined);
@@ -36,10 +38,10 @@ export function computeFederalBillProgress({
     /(passed house|passed senate|passed\/agreed|agreed to in house|agreed to in senate|passed by|agreed to)/i.test(
       joined,
     );
-  const enacted = hasLaw || /became public law|became law/i.test(joined);
+  const enacted = hasLaw || isEnactedOutcomeText(joined);
 
   const congressNum = Number(congress ?? currentCongress);
-  const dead = congressNum < currentCongress && !enacted;
+  const dead = !enacted && congressNum < currentCongress;
 
   return {
     introduced: true,
@@ -51,4 +53,3 @@ export function computeFederalBillProgress({
     dead,
   };
 }
-

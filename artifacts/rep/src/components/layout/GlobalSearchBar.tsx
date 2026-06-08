@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
+  getSearchFederalBillsQueryKey,
   useSearchFederalBills,
   useSearchStateBills,
   useSearchFederalMembers,
@@ -33,8 +34,6 @@ export function GlobalSearchBar({
 } = {}) {
   const [, setLocation] = useLocation();
   const [internalQuery, setInternalQuery] = useState(value ?? "");
-  const [focused, setFocused] = useState(false);
-  const useDropdownMode = false;
   const query = value ?? internalQuery;
   const debounced = useDebounce(query.trim(), 250);
   // In filter mode (showResults=false) the parent page owns the search — don't
@@ -43,7 +42,7 @@ export function GlobalSearchBar({
   const params = { q: debounced, limit: 5 };
 
   const { data: federalBills } = useSearchFederalBills(params, {
-    query: { enabled: acEnabled, queryKey: ["globalSearch", "federalBills", params] as const },
+    query: { enabled: acEnabled, queryKey: getSearchFederalBillsQueryKey(params) },
   });
   const { data: stateBills } = useSearchStateBills(params, {
     query: { enabled: acEnabled, queryKey: ["globalSearch", "stateBills", params] as const },
@@ -72,7 +71,7 @@ export function GlobalSearchBar({
     (stateBills?.bills?.length ?? 0) > 0 ||
     (federalMembers?.members?.length ?? 0) > 0 ||
     (stateMembers?.members?.length ?? 0) > 0;
-  const showInlineResults = !!debounced && !useDropdownMode;
+  const showInlineResults = !!debounced && showResults;
 
   useEffect(() => {
     onSearchModeChange?.(showInlineResults);
@@ -85,7 +84,6 @@ export function GlobalSearchBar({
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (firstResultHref) {
-      setFocused(false);
       setLocation(firstResultHref);
     }
   };
@@ -103,95 +101,7 @@ export function GlobalSearchBar({
           if (value === undefined) setInternalQuery(next);
           onValueChange?.(next);
         }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setTimeout(() => setFocused(false), 150)}
       />
-      {useDropdownMode && focused && hasResults && (
-        <div className="absolute left-0 right-0 top-full mt-1 bg-popover border rounded-xl shadow-xl z-[100] max-h-[24rem] overflow-y-auto text-left">
-          {(federalMembers?.members?.length ?? 0) > 0 && (
-            <div className="py-2">
-              <p className="px-4 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Federal Representatives</p>
-              {federalMembers?.members?.map((m) => (
-                <Link
-                  key={m.bioguideId}
-                  href={`/rep/federal/${m.bioguideId}`}
-                  className="flex items-center gap-3 px-4 py-2 hover:bg-accent/10 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  <Avatar className="h-8 w-8 border">
-                    <AvatarImage src={m.photoUrl} alt={m.name} />
-                    <AvatarFallback className="text-xs">{m.name?.substring(0, 2)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.state}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-          {(stateMembers?.members?.length ?? 0) > 0 && (
-            <div className="py-2 border-t">
-              <p className="px-4 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">State Representatives</p>
-              {stateMembers?.members?.map((m) => (
-                <Link
-                  key={m.id}
-                  href={`/rep/state/${encodeURIComponent(m.id)}`}
-                  className="flex items-center gap-3 px-4 py-2 hover:bg-accent/10 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  <Avatar className="h-8 w-8 border">
-                    <AvatarImage src={m.photoUrl} alt={m.name} />
-                    <AvatarFallback className="text-xs">{m.name?.substring(0, 2)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.jurisdiction}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-          {(federalBills?.bills?.length ?? 0) > 0 && (
-            <div className="py-2 border-t">
-              <p className="px-4 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Federal Bills</p>
-              {federalBills?.bills?.map((b) => (
-                <Link
-                  key={b.id}
-                  href={federalBillHref({ number: b.number, congress: b.congress })}
-                  className="flex items-start gap-3 px-4 py-2 hover:bg-accent/10 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{b.title}</p>
-                    <p className="text-xs text-muted-foreground">{b.number ?? b.id}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-          {(stateBills?.bills?.length ?? 0) > 0 && (
-            <div className="py-2 border-t">
-              <p className="px-4 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">State Bills</p>
-              {stateBills?.bills?.map((b) => (
-                <Link
-                  key={b.id}
-                  href={`/bills/state/${encodeURIComponent(b.id)}`}
-                  className="flex items-start gap-3 px-4 py-2 hover:bg-accent/10 transition-colors"
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{b.title}</p>
-                    <p className="text-xs text-muted-foreground">{b.identifier ?? b.id}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {showResults && showInlineResults && (
         <div className="mt-2 bg-popover border rounded-xl max-h-[24rem] overflow-y-auto text-left">
           {!hasResults && (

@@ -56,6 +56,7 @@ import {
 import { upsertFederalBill } from "../lib/upsertFederalBill";
 import {
   computeLegislationStageFlags,
+  finalizeFederalStageFlags,
   LEGISLATION_STAGE_KEYS,
   parseStageQuery,
   type LegislationStageKey,
@@ -86,6 +87,51 @@ function federalStageColumn(stage: LegislationStageKey) {
     case "dead":
       return federalBillsTable.stageDead;
   }
+}
+
+function buildFederalBillsStageCondition(selectedStages: LegislationStageKey[]) {
+  return selectedStages.length > 0
+    ? or(...selectedStages.map((stage) => eq(federalStageColumn(stage), true)))
+    : undefined;
+}
+
+function buildFederalBillsDbConditions({
+  q,
+  chamberFilter,
+  policyArea,
+  stageCondition,
+  currentCongress,
+  searchAllCongresses,
+}: {
+  q?: string;
+  chamberFilter: string | null;
+  policyArea?: string;
+  stageCondition?: ReturnType<typeof or>;
+  currentCongress: number;
+  searchAllCongresses: boolean;
+}) {
+  const conditions = [];
+
+  if (!searchAllCongresses) {
+    conditions.push(eq(federalBillsTable.congress, currentCongress));
+  }
+  if (q) {
+    const searchQuery = sql`websearch_to_tsquery('english', ${q})`;
+    conditions.push(
+      sql`(${federalBillsTable.searchVector} @@ ${searchQuery} OR ${q} % ${federalBillsTable.title})`,
+    );
+  }
+  if (chamberFilter) {
+    conditions.push(eq(federalBillsTable.chamber, chamberFilter));
+  }
+  if (policyArea) {
+    conditions.push(eq(federalBillsTable.policyArea, policyArea));
+  }
+  if (stageCondition) {
+    conditions.push(stageCondition);
+  }
+
+  return conditions;
 }
 
 async function congressFetch(
@@ -853,14 +899,15 @@ async function ingestFederalMemberBillsPage(
       const title = getFederalLegislationTitle(b);
       const latestActionText = b.latestAction?.text ?? null;
       const latestActionDate = b.latestAction?.actionDate ?? null;
-      const stageFlags = computeLegislationStageFlags({
-        latestAction: latestActionText,
-        introducedDate: b.introducedDate ?? null,
-      });
+      const stageFlags = finalizeFederalStageFlags(
+        computeLegislationStageFlags({
+          latestAction: latestActionText,
+          introducedDate: b.introducedDate ?? null,
+        }),
+        b.congress != null ? Number(b.congress) : null,
+        currentCongress,
+      );
       const billCongress = b.congress != null ? Number(b.congress) : null;
-      if (billCongress != null && billCongress < currentCongress && !stageFlags.signed_enacted) {
-        stageFlags.dead = true;
-      }
       const subjects =
         b.subjects?.item ?? (Array.isArray(b.subjects) ? b.subjects : []);
 
@@ -2183,7 +2230,7 @@ router.get("/federal/bills", async (req, res) => {
   const parsed = GetFederalBillsQueryParams.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
 
-  const { chamber, policyArea, offset, limit, stages } = parsed.data;
+  const { chamber, policyArea, offset, limit, stages, q } = parsed.data;
   const selectedStages = parseStageQuery(stages);
 
   try {
@@ -2195,29 +2242,25 @@ router.get("/federal/bills", async (req, res) => {
         ? chamber.charAt(0).toUpperCase() + chamber.slice(1)
         : null;
 
-    const stageCondition =
-      selectedStages.length > 0
-        ? or(
-            ...selectedStages.map((stage) =>
-              eq(federalStageColumn(stage), true),
-            ),
-          )
-        : undefined;
+    const stageCondition = buildFederalBillsStageCondition(selectedStages);
+    const searchAllCongresses = !!q || !!policyArea;
 
     // DB-first: serve cached page if present for this congress/chamber.
-    const dbConditions = [
-      eq(federalBillsTable.congress, currentCongress),
-      ...(chamberFilter ? [eq(federalBillsTable.chamber, chamberFilter)] : []),
-      ...(policyArea ? [eq(federalBillsTable.policyArea, policyArea)] : []),
-      ...(stageCondition ? [stageCondition] : []),
-    ];
+    const dbConditions = buildFederalBillsDbConditions({
+      q,
+      chamberFilter,
+      policyArea,
+      stageCondition,
+      currentCongress,
+      searchAllCongresses,
+    });
     const dbCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(federalBillsTable)
       .where(and(...dbConditions));
     const dbTotalCount = Number(dbCountResult[0]?.count ?? 0);
 
-    if (dbTotalCount > offset || policyArea || selectedStages.length > 0) {
+    if (dbTotalCount > offset || searchAllCongresses || selectedStages.length > 0) {
       const rows = await db
         .select({
           id: federalBillsTable.id,
@@ -2250,6 +2293,7 @@ router.get("/federal/bills", async (req, res) => {
 
       req.log.info(
         {
+          q,
           chamber,
           policyArea,
           stages,
@@ -2285,9 +2329,11 @@ router.get("/federal/bills", async (req, res) => {
       });
       const billCongress =
         b.congress != null ? Number(b.congress) : currentCongress;
-      if (billCongress < currentCongress && !stageFlags.signed_enacted) {
-        stageFlags.dead = true;
-      }
+      const normalizedStageFlags = finalizeFederalStageFlags(
+        stageFlags,
+        billCongress,
+        currentCongress,
+      );
       return {
         id: `${b.congress}-${billType}-${b.number}`,
         title: b.title ?? "Untitled",
@@ -2306,12 +2352,12 @@ router.get("/federal/bills", async (req, res) => {
           b.subjects?.item ??
           (Array.isArray(b.subjects) ? b.subjects : undefined),
         category: classifyFederalLegislationItem(b),
-        stageIntroduced: stageFlags.introduced,
-        stageCommittee: stageFlags.committee,
-        stageFloorVote: stageFlags.floor_vote,
-        stagePassed: stageFlags.passed,
-        stageSignedEnacted: stageFlags.signed_enacted,
-        stageDead: stageFlags.dead,
+        stageIntroduced: normalizedStageFlags.introduced,
+        stageCommittee: normalizedStageFlags.committee,
+        stageFloorVote: normalizedStageFlags.floor_vote,
+        stagePassed: normalizedStageFlags.passed,
+        stageSignedEnacted: normalizedStageFlags.signed_enacted,
+        stageDead: normalizedStageFlags.dead,
       };
     });
 
@@ -2327,7 +2373,7 @@ router.get("/federal/bills", async (req, res) => {
     });
 
     req.log.info(
-      { count: bills.length, source: "congress.gov" },
+      { count: bills.length, q, source: "congress.gov" },
       "Fetched federal bills from Congress.gov",
     );
 
@@ -2378,14 +2424,14 @@ router.get("/federal/bills/search", async (req, res) => {
 
   try {
     req.log.info({ q, policyArea, source: "db" }, "Searching federal bills from DB cache");
-    const conditions = [];
-    if (q) {
-      const searchQuery = sql`websearch_to_tsquery('english', ${q})`;
-      conditions.push(sql`(${federalBillsTable.searchVector} @@ ${searchQuery} OR ${q} % ${federalBillsTable.title})`);
-    }
-    if (policyArea) {
-      conditions.push(eq(federalBillsTable.policyArea, policyArea));
-    }
+    const conditions = buildFederalBillsDbConditions({
+      q,
+      chamberFilter: null,
+      policyArea,
+      stageCondition: undefined,
+      currentCongress: getCurrentCongressNumber(),
+      searchAllCongresses: true,
+    });
 
     const rows = await db
       .select()
@@ -2563,14 +2609,15 @@ router.get(
         actions,
       });
 
-      const stageFlags = computeLegislationStageFlags({
-        latestAction: bill.latestAction?.text,
-        introducedDate: bill.introducedDate,
-      });
       const currentCongress = getCurrentCongressNumber();
-      if (Number(congress) < currentCongress && !stageFlags.signed_enacted) {
-        stageFlags.dead = true;
-      }
+      const stageFlags = finalizeFederalStageFlags(
+        computeLegislationStageFlags({
+          latestAction: bill.latestAction?.text,
+          introducedDate: bill.introducedDate,
+        }),
+        Number(congress),
+        currentCongress,
+      );
 
       const fetchedSummaryRaw =
         needsSummaryFetch && summaryData.status === "fulfilled" && summaryData.value !== null

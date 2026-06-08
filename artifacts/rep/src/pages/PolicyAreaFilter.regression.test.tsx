@@ -52,11 +52,13 @@ describe("Policy area filter regression", () => {
     expect(source.includes('setPolicyArea((prev) => {')).toBe(true);
   });
 
-  it("FederalBills passes policyArea to both listing and search hooks", () => {
+  it("FederalBills passes policyArea through the canonical listing hook", () => {
     const source = getSource("FederalBills");
     expect(source.includes("useGetFederalBills(")).toBe(true);
-    expect(source.includes("policyArea, offset, limit")).toBe(true);
-    expect(source.includes("useSearchFederalBills(searchParams,")).toBe(true);
-    expect(source.includes("const searchParams = { q: searchQuery, policyArea, offset, limit }")).toBe(true);
+    expect(source.includes("q: searchQuery || undefined")).toBe(true);
+    expect(source.includes("policyArea,")).toBe(true);
+    expect(source.includes("offset,")).toBe(true);
+    expect(source.includes("limit,")).toBe(true);
+    expect(source.includes("useSearchFederalBills")).toBe(false);
   });
 });

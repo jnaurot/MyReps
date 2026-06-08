@@ -7,6 +7,7 @@
     "pg": "^8.20.0"
   },
   "scripts": {
+    "backfill:federal-bill-stages": "tsx ./src/backfillFederalBillStageFlags.ts",
     "backfill:legislation-stages": "tsx ./src/backfillLegislationStages.ts",
     "backfill:not-agreed-to": "tsx ./src/backfillNotAgreedTo.ts",
     "backfill:state-bill-sponsorships": "tsx ./src/backfillStateBillSponsorshipsAndActions.ts",

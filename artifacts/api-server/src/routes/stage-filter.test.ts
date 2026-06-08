@@ -50,7 +50,7 @@ describe("GET /federal/bills — stage filtering integration", () => {
   const src = federalSource();
 
   it("GetFederalBillsQueryParams is parsed and stages is destructured", () => {
-    expect(src).toContain("const { chamber, policyArea, offset, limit, stages } = parsed.data;");
+    expect(src).toContain("const { chamber, policyArea, offset, limit, stages, q } = parsed.data;");
   });
 
   it("stages are parsed into selectedStages via parseStageQuery", () => {
