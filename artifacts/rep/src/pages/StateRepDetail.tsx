@@ -201,7 +201,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
           }
         }
       },
-      { rootMargin: "200px" },
+      { root: listViewportRef.current, rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -436,7 +436,7 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
           }
         }
       },
-      { rootMargin: "200px" },
+      { root: listViewportRef.current, rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

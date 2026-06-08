@@ -196,7 +196,7 @@ export function StateBills() {
           if (nextOffset < effectiveTotalCount) setOffset(nextOffset);
         }
       },
-      { rootMargin: "200px" },
+      { root: listViewportRef.current, rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

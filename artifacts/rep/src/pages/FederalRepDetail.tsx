@@ -388,7 +388,7 @@ export function BillsList({
           }
         }
       },
-      { rootMargin: "200px" },
+      { root: listViewportRef.current, rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -855,7 +855,7 @@ function VotesList({
           }
         }
       },
-      { rootMargin: "200px" },
+      { root: listViewportRef.current, rootMargin: "200px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

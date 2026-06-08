@@ -47,6 +47,13 @@ const pageShellPages = [
   "StateBills",
 ];
 
+const mobileInfiniteScrollPages = [
+  "FederalBills",
+  "StateBills",
+  "FederalRepDetail",
+  "StateRepDetail",
+];
+
 describe("Scroll layout regression", () => {
   it("PageShell keeps fixed viewport and non-scrolling outer container", () => {
     const source = getLayoutSource("PageShell");
@@ -66,6 +73,14 @@ describe("Scroll layout regression", () => {
     expect(source.includes("<PageShell")).toBe(true);
     expect(source.includes("<ListViewport")).toBe(true);
   });
+
+  it.each(mobileInfiniteScrollPages)(
+    "%s binds IntersectionObserver to the inner ListViewport scroll root",
+    (name) => {
+      const source = getPageSource(name);
+      expect(source.includes('root: listViewportRef.current')).toBe(true);
+    },
+  );
 
   it("Home keeps fixed outer container and inner scrolling area", () => {
     const source = getPageSource("Home");
