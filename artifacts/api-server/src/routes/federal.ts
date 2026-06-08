@@ -63,6 +63,7 @@ import {
   type LegislationStageKey,
 } from "../lib/legislationStages";
 import { computeFederalBillProgress, getCurrentCongressNumber } from "../lib/federalBillProgress";
+import { dedupeAndSortFederalBillActions } from "../lib/federalBillActions";
 import { dedupeFederalBillVotes } from "../lib/federalBillVotes";
 import { shouldRefetchField } from "../lib/summaryCacheUtils";
 import { normalizeSummaryText } from "../lib/summaryText";
@@ -2579,15 +2580,7 @@ router.get(
 
       const rawActionsRaw = actionsData.status === "fulfilled" ? actionsData.value.actions : undefined;
       const rawActions: any[] = rawActionsRaw?.item ?? (Array.isArray(rawActionsRaw) ? rawActionsRaw : []);
-      const seenActions = new Set<string>();
-      const actions = rawActions.flatMap((a: any) => {
-        const date = a.actionDate ?? "";
-        const text = (a.text ?? "").trim();
-        const key = `${date}|${text}`;
-        if (seenActions.has(key)) return [];
-        seenActions.add(key);
-        return [{ date, text, type: a.type }];
-      });
+      const actions = dedupeAndSortFederalBillActions(rawActions);
       const votes = dedupeFederalBillVotes(rawActions.flatMap((a: any) => {
         const recordedVotes: any[] = a.recordedVotes ?? [];
         if (recordedVotes.length === 0) return [];
