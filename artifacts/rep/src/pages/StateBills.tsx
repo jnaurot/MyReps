@@ -212,8 +212,8 @@ export function StateBills() {
       <div className="min-h-screen bg-muted/20">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="mb-8">
-            <h1 className="text-4xl font-black mb-2 max-sm:text-3xl">State Bills</h1>
-            <p className="text-muted-foreground">Bills being considered in state legislatures across the country</p>
+            <h1 className="cursor-default text-4xl font-black mb-2 max-sm:text-3xl">State Bills</h1>
+            <p className="cursor-default text-muted-foreground">Bills being considered in state legislatures across the country</p>
           </div>
 
           <div className="text-center py-20 text-muted-foreground">
@@ -238,8 +238,8 @@ export function StateBills() {
   return (
     <PageShell contentClassName="pb-4">
       <div className="mb-8 shrink-0 max-sm:mb-5">
-        <h1 className="text-4xl font-black mb-2 max-sm:text-3xl">{stateName} State Bills</h1>
-        <p className="text-muted-foreground max-sm:hidden">Bills being considered in the {stateName} legislature</p>
+        <h1 className="cursor-default text-4xl font-black mb-2 max-sm:text-3xl">{stateName} State Bills</h1>
+        <p className="cursor-default text-muted-foreground max-sm:hidden">Bills being considered in the {stateName} legislature</p>
       </div>
 
       <div className="flex items-start gap-2">

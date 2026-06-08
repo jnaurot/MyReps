@@ -116,7 +116,7 @@ function PolicyAreaChart({
             <button
               type="button"
               onClick={() => onPolicyAreaClick?.(item.name ?? "")}
-              className="text-xs w-24 truncate shrink-0 hover:underline hover:text-primary transition-colors text-left"
+              className="w-24 shrink-0 cursor-pointer truncate text-left text-xs transition-colors hover:text-primary hover:underline"
               title={item.name}
             >
               {item.name}
@@ -1506,7 +1506,7 @@ export function FederalRepDetail() {
                               <Badge
                                 key={area.name}
                                 variant="outline"
-                                className="text-xs bg-primary/5 border-primary/20"
+                                className="cursor-pointer text-xs bg-primary/5 border-primary/20"
                               >
                                 {area.name}
                               </Badge>
@@ -1528,7 +1528,7 @@ export function FederalRepDetail() {
                             {topPolicyAreas[0] && (
                               <Badge
                                 variant="outline"
-                                className="text-xs bg-primary/5 border-primary/20 min-w-0 max-sm:w-full sm:max-w-[36ch] truncate"
+                                className="cursor-pointer text-xs bg-primary/5 border-primary/20 min-w-0 max-sm:w-full sm:max-w-[36ch] truncate"
                               >
                                 {topPolicyAreas[0].name}
                               </Badge>

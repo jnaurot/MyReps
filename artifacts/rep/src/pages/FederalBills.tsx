@@ -189,8 +189,8 @@ export function FederalBills() {
   return (
     <PageShell contentClassName="pb-4">
       <div className="mb-8 shrink-0 max-sm:mb-5">
-        <h1 className="text-4xl font-black mb-2 max-sm:text-3xl">Federal Bills</h1>
-        <p className="text-muted-foreground max-sm:hidden">Bills currently being considered in the U.S. Congress</p>
+        <h1 className="cursor-default text-4xl font-black mb-2 max-sm:text-3xl">Federal Bills</h1>
+        <p className="cursor-default text-muted-foreground max-sm:hidden">Bills currently being considered in the U.S. Congress</p>
       </div>
 
       <div className="flex items-start gap-2">
