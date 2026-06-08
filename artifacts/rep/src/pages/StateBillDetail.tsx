@@ -10,9 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ExternalLink, CheckCircle2, Circle, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RepNameLink } from "@/components/RepNameLink";
-import { partyColor, SummarySearch } from "@/lib/rep-utils";
+import { SummarySearch } from "@/lib/rep-utils";
 import { useBookmarks } from "@/hooks/useBookmarks";
 import { ResizableDetailCard } from "@/components/ResizableDetailCard";
+import { PartyStateBadgeRail } from "@/components/PartyStateBadgeRail";
 
 type BillActionSummary = {
   date: string;
@@ -349,11 +350,9 @@ export function StateBillDetail() {
                 <ResizableDetailCard title={`Sponsor${bill.sponsors.length > 1 ? "s" : ""}`} maxHeight={profileHeight}>
                   <div className="space-y-2">
                     {bill.sponsors.map((s, i) => (
-                      <div key={i} className="flex items-center justify-between">
+                      <div key={i} className="flex min-w-0 items-center justify-between gap-3">
                         <RepNameLink name={s.name} openstatesId={s.openstatesId} />
-                        <div className="flex gap-1">
-                          {s.party && <Badge className={`text-xs ${partyColor(s.party)}`}>{s.party?.charAt(0)}</Badge>}
-                        </div>
+                        <PartyStateBadgeRail party={s.party} />
                       </div>
                     ))}
                   </div>
@@ -378,11 +377,9 @@ export function StateBillDetail() {
               <ResizableDetailCard title={`Cosponsors (${bill.cosponsors.length})`} maxHeight={profileHeight}>
                 <div className="grid grid-cols-1 gap-y-1 sm:grid-cols-2 sm:gap-x-6">
                   {bill.cosponsors.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                    <div key={i} className="flex min-w-0 items-center justify-between gap-3 border-b py-1.5 last:border-0">
                       <RepNameLink name={s.name} openstatesId={s.openstatesId} />
-                      <div className="flex gap-1 items-center">
-                        {s.party && <Badge className={`text-xs ${partyColor(s.party)}`}>{s.party?.charAt(0)}</Badge>}
-                      </div>
+                      <PartyStateBadgeRail party={s.party} />
                     </div>
                   ))}
                 </div>

@@ -40,9 +40,9 @@ export function toggleBillStageSelection(
 
 export function partyColor(party?: string) {
   if (!party) return "bg-gray-100 text-gray-700";
-  const p = party.toLowerCase();
-  if (p.includes("democrat")) return "bg-blue-600 text-white";
-  if (p.includes("republican")) return "bg-red-600 text-white";
+  const p = party.trim().toLowerCase();
+  if (p === "d" || p.startsWith("democrat")) return "bg-blue-600 text-white";
+  if (p === "r" || p.startsWith("republican")) return "bg-red-600 text-white";
   return "bg-gray-200 text-gray-800";
 }
 
