@@ -27,7 +27,7 @@ rsync -avz --delete \
 
 echo "=== Deploying frontend to nginx root ==="
 ssh "$SERVER" "mkdir -p '$REMOTE_FRONTEND_BASE'"
-rsync -avz --delete \
+rsync -avzc --delete \
   "$LOCAL_BASE/artifacts/rep/dist/public/" \
   "$SERVER:$REMOTE_FRONTEND_BASE/"
 

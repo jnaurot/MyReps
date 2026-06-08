@@ -59,6 +59,7 @@ import {
   finalizeFederalStageFlags,
   LEGISLATION_STAGE_KEYS,
   parseStageQuery,
+  type LegislationFilterKey,
   type LegislationStageKey,
 } from "../lib/legislationStages";
 import { computeFederalBillProgress, getCurrentCongressNumber } from "../lib/federalBillProgress";
@@ -89,10 +90,19 @@ function federalStageColumn(stage: LegislationStageKey) {
   }
 }
 
-function buildFederalBillsStageCondition(selectedStages: LegislationStageKey[]) {
-  return selectedStages.length > 0
-    ? or(...selectedStages.map((stage) => eq(federalStageColumn(stage), true)))
-    : undefined;
+function buildFederalBillsStageCondition(selectedStages: LegislationFilterKey[]) {
+  if (selectedStages.length === 0) return undefined;
+
+  return or(
+    ...selectedStages.map((stage) =>
+      stage === "active"
+        ? and(
+            eq(federalBillsTable.stageDead, false),
+            eq(federalBillsTable.stageSignedEnacted, false),
+          )
+        : eq(federalStageColumn(stage), true),
+    ),
+  );
 }
 
 function buildFederalBillsDbConditions({
@@ -1104,14 +1114,7 @@ router.get("/federal/members/:bioguideId/bills", async (req, res) => {
       category && category !== "all"
         ? eq(federalBillsTable.category, category)
         : undefined;
-    const stageCondition =
-      selectedStages.length > 0
-        ? or(
-            ...selectedStages.map((stage) =>
-              eq(federalStageColumn(stage), true),
-            ),
-          )
-        : undefined;
+    const stageCondition = buildFederalBillsStageCondition(selectedStages);
     const policyAreaCondition = policyArea
       ? eq(federalBillsTable.policyArea, policyArea)
       : undefined;
@@ -1316,6 +1319,7 @@ router.get("/federal/members/:bioguideId/bills", async (req, res) => {
               ...memberConditions,
               ...(stageCondition ? [stageCondition] : []),
               ...(searchCondition ? [searchCondition] : []),
+              ...(policyAreaCondition ? [policyAreaCondition] : []),
             ),
           )
           .groupBy(federalBillsTable.category),
@@ -2623,10 +2627,10 @@ router.get(
         needsSummaryFetch && summaryData.status === "fulfilled" && summaryData.value !== null
           ? (summaryData.value.summaries?.item?.[0]?.text ?? summaryData.value.summaries?.[0]?.text ?? null)
           : null;
-      const fetchedSummary = normalizeSummaryText(fetchedSummaryRaw);
+      const fetchedSummary = normalizeSummaryText(fetchedSummaryRaw, bill.title ?? null);
       const summary = needsSummaryFetch
         ? fetchedSummary
-        : normalizeSummaryText(cached?.summary ?? null);
+        : normalizeSummaryText(cached?.summary ?? null, bill.title ?? null);
 
       let textUrl: string | null | undefined;
       if (needsTextFetch) {

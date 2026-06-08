@@ -6,24 +6,37 @@ import { ChevronUp, ChevronDown, X, Search, GripHorizontal } from "lucide-react"
 import { useResizableContentHeight } from "@/hooks/useResizableContentHeight";
 
 export const BILL_STAGE_OPTIONS = [
-  "Introduced",
-  "Committee",
-  "Floor Vote",
-  "Passed",
-  "Signed/Enacted",
+  "All Bills",
+  "Active Bills",
+  "Became Law/Adopted",
   "Dead",
 ] as const;
 
 export type BillStage = (typeof BILL_STAGE_OPTIONS)[number];
 
 export const BILL_STAGE_QUERY_KEYS: Record<BillStage, string> = {
-  Introduced: "introduced",
-  Committee: "committee",
-  "Floor Vote": "floor_vote",
-  Passed: "passed",
-  "Signed/Enacted": "signed_enacted",
+  "All Bills": "all",
+  "Active Bills": "active",
+  "Became Law/Adopted": "signed_enacted",
   Dead: "dead",
 };
+
+export function buildBillStageQuery(selectedStages: BillStage[]): string | undefined {
+  const queryStages = selectedStages.filter(
+    (stage): stage is Exclude<BillStage, "All Bills"> => stage !== "All Bills",
+  );
+  return queryStages.length > 0
+    ? queryStages.map((stage) => BILL_STAGE_QUERY_KEYS[stage]).join(",")
+    : undefined;
+}
+
+export function toggleBillStageSelection(
+  selectedStages: BillStage[],
+  stage: BillStage,
+): BillStage[] {
+  if (stage === "All Bills") return [];
+  return selectedStages.includes(stage) ? [] : [stage];
+}
 
 export function partyColor(party?: string) {
   if (!party) return "bg-gray-100 text-gray-700";

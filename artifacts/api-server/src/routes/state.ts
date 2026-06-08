@@ -31,7 +31,9 @@ import {
 } from "../lib/respond";
 import {
   computeLegislationStageFlags,
+  matchesLegislationFilters,
   parseStageQuery,
+  type LegislationFilterKey,
   type LegislationStageKey,
 } from "../lib/legislationStages";
 import {
@@ -100,6 +102,21 @@ function stateStageColumn(stage: LegislationStageKey) {
     case "dead":
       return stateBillsTable.stageDead;
   }
+}
+
+function buildStateBillsStageCondition(selectedStages: LegislationFilterKey[]) {
+  if (selectedStages.length === 0) return undefined;
+
+  return or(
+    ...selectedStages.map((stage) =>
+      stage === "active"
+        ? and(
+            eq(stateBillsTable.stageDead, false),
+            eq(stateBillsTable.stageSignedEnacted, false),
+          )
+        : eq(stateStageColumn(stage), true),
+    ),
+  );
 }
 
 function mapStateBill(b: any) {
@@ -528,9 +545,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
           ? or(...primaryContainment)
           : or(...cosponsorContainment);
 
-      const stageCondition = or(
-        ...selectedStages.map((stage) => eq(stateStageColumn(stage), true)),
-      );
+      const stageCondition = buildStateBillsStageCondition(selectedStages);
       const searchCondition = q
         ? sql`(${stateBillsTable.searchVector} @@ websearch_to_tsquery('english', ${q}) OR ${q} % ${stateBillsTable.title})`
         : undefined;
@@ -961,10 +976,7 @@ router.get("/state/bills", async (req, res) => {
   const selectedStages = parseStageQuery(stages);
 
   try {
-    const stageCondition =
-      selectedStages.length > 0
-        ? or(...selectedStages.map((stage) => eq(stateStageColumn(stage), true)))
-        : undefined;
+    const stageCondition = buildStateBillsStageCondition(selectedStages);
     const dbConditions = [
       eq(stateBillsTable.jurisdiction, jurisdiction),
       ...(chamber ? [eq(stateBillsTable.chamber, chamber)] : []),
@@ -1064,10 +1076,7 @@ router.get("/state/bills/search", async (req, res) => {
       conditions.push(eq(stateBillsTable.jurisdiction, jurisdiction));
     if (chamber)
       conditions.push(eq(stateBillsTable.chamber, chamber));
-    const stageCondition =
-      selectedStages.length > 0
-        ? or(...selectedStages.map((stage) => eq(stateStageColumn(stage), true)))
-        : undefined;
+    const stageCondition = buildStateBillsStageCondition(selectedStages);
     if (stageCondition)
       conditions.push(stageCondition);
 
@@ -1127,7 +1136,7 @@ router.get("/state/bills/search", async (req, res) => {
           status: bill.status,
           introducedDate: bill.introducedDate,
         });
-        return selectedStages.some((stage) => flags[stage]);
+        return matchesLegislationFilters(selectedStages, flags);
       });
     }
 

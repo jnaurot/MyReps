@@ -3,22 +3,18 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const BILL_STAGE_OPTIONS = [
-  "Introduced",
-  "Committee",
-  "Floor Vote",
-  "Passed",
-  "Signed/Enacted",
+  "All Bills",
+  "Active Bills",
+  "Became Law/Adopted",
   "Dead",
 ] as const;
 
 type BillStage = (typeof BILL_STAGE_OPTIONS)[number];
 
 const BILL_STAGE_QUERY_KEYS: Record<BillStage, string> = {
-  Introduced: "introduced",
-  Committee: "committee",
-  "Floor Vote": "floor_vote",
-  Passed: "passed",
-  "Signed/Enacted": "signed_enacted",
+  "All Bills": "all",
+  "Active Bills": "active",
+  "Became Law/Adopted": "signed_enacted",
   Dead: "dead",
 };
 
@@ -28,24 +24,26 @@ function pageSource(filename: string): string {
   return readFileSync(resolve(pagesDir, filename), "utf8");
 }
 
-// ─── Single-select toggle reducer (logic extracted from all 4 pages) ──────────
-
-// This is the exact reducer used in every onToggleStage handler.
 function singleSelectToggle(prev: BillStage[], stage: BillStage): BillStage[] {
+  if (stage === "All Bills") return [];
   return prev.includes(stage) ? [] : [stage];
 }
 
-describe("singleSelectToggle — single-select reducer behaviour", () => {
+describe("singleSelectToggle — simplified bill status reducer behaviour", () => {
   it("selecting a stage from empty state returns [stage]", () => {
-    expect(singleSelectToggle([], "Passed")).toEqual(["Passed"]);
+    expect(singleSelectToggle([], "Active Bills")).toEqual(["Active Bills"]);
   });
 
   it("selecting a different stage replaces the current selection", () => {
-    expect(singleSelectToggle(["Passed"], "Signed/Enacted")).toEqual(["Signed/Enacted"]);
+    expect(singleSelectToggle(["Active Bills"], "Became Law/Adopted")).toEqual(["Became Law/Adopted"]);
   });
 
   it("selecting the currently active stage deselects it (returns [])", () => {
-    expect(singleSelectToggle(["Committee"], "Committee")).toEqual([]);
+    expect(singleSelectToggle(["Dead"], "Dead")).toEqual([]);
+  });
+
+  it("selecting All Bills clears any active stage selection", () => {
+    expect(singleSelectToggle(["Dead"], "All Bills")).toEqual([]);
   });
 
   it("result never contains more than one stage", () => {
@@ -65,8 +63,6 @@ describe("singleSelectToggle — single-select reducer behaviour", () => {
   });
 });
 
-// ─── BILL_STAGE_QUERY_KEYS maps every display name to exactly one API key ────
-
 describe("BILL_STAGE_QUERY_KEYS", () => {
   it("every display stage has a corresponding API key", () => {
     for (const stage of BILL_STAGE_OPTIONS) {
@@ -75,12 +71,10 @@ describe("BILL_STAGE_QUERY_KEYS", () => {
     }
   });
 
-  it("API keys are the snake_case names accepted by the server", () => {
-    expect(BILL_STAGE_QUERY_KEYS["Signed/Enacted"]).toBe("signed_enacted");
-    expect(BILL_STAGE_QUERY_KEYS["Floor Vote"]).toBe("floor_vote");
-    expect(BILL_STAGE_QUERY_KEYS["Passed"]).toBe("passed");
-    expect(BILL_STAGE_QUERY_KEYS["Committee"]).toBe("committee");
-    expect(BILL_STAGE_QUERY_KEYS["Introduced"]).toBe("introduced");
+  it("API keys match the simplified server filters", () => {
+    expect(BILL_STAGE_QUERY_KEYS["All Bills"]).toBe("all");
+    expect(BILL_STAGE_QUERY_KEYS["Active Bills"]).toBe("active");
+    expect(BILL_STAGE_QUERY_KEYS["Became Law/Adopted"]).toBe("signed_enacted");
     expect(BILL_STAGE_QUERY_KEYS["Dead"]).toBe("dead");
   });
 
@@ -94,8 +88,6 @@ describe("BILL_STAGE_QUERY_KEYS", () => {
   });
 });
 
-// ─── Regression: all 4 page files use the single-select pattern ───────────────
-
 const PAGE_FILES = [
   "FederalBills.tsx",
   "StateBills.tsx",
@@ -103,30 +95,32 @@ const PAGE_FILES = [
   "StateRepDetail.tsx",
 ] as const;
 
-// The single-select pattern: prev.includes(stage) ? [] : [stage]
-// Multi-select would be: [...prev, stage]
-const SINGLE_SELECT_PATTERN = /prev\.includes\(stage\)\s*\?\s*\[\]\s*:\s*\[stage\]/;
 const MULTI_SELECT_PATTERN = /\[\.\.\.prev,\s*stage\]/;
 
-describe("Regression: stage pill toggle is single-select in all pages", () => {
+describe("Regression: stage pill toggle uses the shared single-select helper", () => {
   for (const file of PAGE_FILES) {
-    it(`${file} uses single-select toggle (prev.includes(stage) ? [] : [stage])`, () => {
+    it(`${file} uses toggleBillStageSelection`, () => {
       const src = pageSource(file);
-      expect(SINGLE_SELECT_PATTERN.test(src)).toBe(true);
+      expect(src).toContain("toggleBillStageSelection");
     });
 
     it(`${file} does NOT use multi-select accumulation ([...prev, stage])`, () => {
       const src = pageSource(file);
       expect(MULTI_SELECT_PATTERN.test(src)).toBe(false);
     });
+
+    it(`${file} does not retain Status On/Off wiring`, () => {
+      const src = pageSource(file);
+      expect(src).not.toContain("statusEnabled");
+      expect(src).not.toContain('status", "on"');
+      expect(src).not.toContain('get("status")');
+    });
   }
 });
 
-// ─── Regression: stageQuery is always a single-item string ───────────────────
-
 describe("Regression: stageQuery computation from single selectedStages", () => {
   it("joining a single-element selectedStages array produces no comma", () => {
-    const selected: BillStage[] = ["Signed/Enacted"];
+    const selected: BillStage[] = ["Became Law/Adopted"];
     const stageQuery = selected.map((s) => BILL_STAGE_QUERY_KEYS[s]).join(",");
     expect(stageQuery).toBe("signed_enacted");
     expect(stageQuery.includes(",")).toBe(false);

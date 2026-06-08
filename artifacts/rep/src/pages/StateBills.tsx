@@ -20,8 +20,14 @@ import { ListViewport } from "@/components/layout/ListViewport";
 import { PaginationFooter } from "@/components/layout/PaginationFooter";
 import { FilterBar } from "@/components/layout/FilterBar";
 import { GlobalSearchBar } from "@/components/layout/GlobalSearchBar";
-import { BILL_STAGE_OPTIONS, BILL_STAGE_QUERY_KEYS, billNumberClass, type BillStage } from "@/lib/rep-utils";
-import { StatusFilterControls, StatusStagePills } from "@/components/layout/StatusFilterControls";
+import {
+  BILL_STAGE_OPTIONS,
+  buildBillStageQuery,
+  billNumberClass,
+  toggleBillStageSelection,
+  type BillStage,
+} from "@/lib/rep-utils";
+import { StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 type Chamber = "upper" | "lower" | "all";
@@ -40,9 +46,6 @@ export function StateBills() {
     return Number.isFinite(raw) && raw >= 0 ? raw : 0;
   });
   const [searchQuery, setSearchQuery] = useState(initialParams.get("q") ?? "");
-  const [statusEnabled, setStatusEnabled] = useState(
-    initialParams.get("status") === "on",
-  );
   const [selectedStages, setSelectedStages] = useState<BillStage[]>(() => {
     const raw = initialParams.get("stages");
     if (!raw) return [];
@@ -66,10 +69,7 @@ export function StateBills() {
 
   const stateCode = selectedState;
   const stateName = getStateName(stateCode);
-  const statusFilterActive = statusEnabled && selectedStages.length > 0;
-  const stageQuery = statusFilterActive
-    ? selectedStages.map((stage) => BILL_STAGE_QUERY_KEYS[stage]).join(",")
-    : undefined;
+  const stageQuery = buildBillStageQuery(selectedStages);
 
   const params = chamber === "all"
     ? { offset, limit, jurisdiction: stateCode?.toLowerCase(), stages: stageQuery }
@@ -114,7 +114,6 @@ export function StateBills() {
   backPathParams.set("chamber", chamber);
   backPathParams.set("offset", String(offset));
   if (searchQuery) backPathParams.set("q", searchQuery);
-  if (statusEnabled) backPathParams.set("status", "on");
   if (selectedStages.length > 0)
     backPathParams.set("stages", selectedStages.join(","));
   const backPath = `/bills/state?${backPathParams.toString()}`;
@@ -261,27 +260,14 @@ export function StateBills() {
             showResults={false}
           />
         </div>
-        <StatusFilterControls
-          statusEnabled={statusEnabled}
-          onToggleStatus={() => {
-            setStatusEnabled((prev) => {
-              const next = !prev;
-              if (!next) setSelectedStages([]);
-              return next;
-            });
-            setOffset(0);
-          }}
-        />
       </div>
-      {statusEnabled && (
-        <StatusStagePills
-          selectedStages={selectedStages}
-          onToggleStage={(stage) => {
-            setSelectedStages((prev) => (prev.includes(stage) ? [] : [stage]));
-            setOffset(0);
-          }}
-        />
-      )}
+      <StatusStagePills
+        selectedStages={selectedStages}
+        onToggleStage={(stage) => {
+          setSelectedStages((prev) => toggleBillStageSelection(prev, stage));
+          setOffset(0);
+        }}
+      />
 
       <FilterBar className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-2">
         <Select value={chamber} onValueChange={handleChamberChange}>
@@ -328,7 +314,7 @@ export function StateBills() {
           {!loadingBase && !activeError && billsToRender.length === 0 && (
             <div className="text-center py-20 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>{`No bills found${statusEnabled && selectedStages.length > 0 ? " for selected status filters" : ""}.`}</p>
+              <p>{`No bills found${selectedStages.length > 0 ? " for selected bill statuses" : ""}.`}</p>
             </div>
           )}
 

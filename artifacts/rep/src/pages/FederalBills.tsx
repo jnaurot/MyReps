@@ -14,8 +14,14 @@ import { ListViewport } from "@/components/layout/ListViewport";
 import { PaginationFooter } from "@/components/layout/PaginationFooter";
 import { FilterBar } from "@/components/layout/FilterBar";
 import { GlobalSearchBar } from "@/components/layout/GlobalSearchBar";
-import { BILL_STAGE_OPTIONS, BILL_STAGE_QUERY_KEYS, billNumberClass, type BillStage } from "@/lib/rep-utils";
-import { StatusFilterControls, StatusStagePills } from "@/components/layout/StatusFilterControls";
+import {
+  BILL_STAGE_OPTIONS,
+  buildBillStageQuery,
+  billNumberClass,
+  toggleBillStageSelection,
+  type BillStage,
+} from "@/lib/rep-utils";
+import { StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 type Chamber = "both" | "house" | "senate";
@@ -34,9 +40,6 @@ export function FederalBills() {
   });
   const [searchQuery, setSearchQuery] = useState(initialParams.get("q") ?? "");
   const [policyArea, setPolicyArea] = useState(initialParams.get("policyArea") ?? "");
-  const [statusEnabled, setStatusEnabled] = useState(
-    initialParams.get("status") === "on",
-  );
   const [selectedStages, setSelectedStages] = useState<BillStage[]>(() => {
     const raw = initialParams.get("stages");
     if (!raw) return [];
@@ -55,10 +58,7 @@ export function FederalBills() {
   const scrollRatioRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const stageQuery =
-    statusEnabled && selectedStages.length > 0
-      ? selectedStages.map((s) => BILL_STAGE_QUERY_KEYS[s]).join(",")
-      : undefined;
+  const stageQuery = buildBillStageQuery(selectedStages);
 
   const { data, isLoading, isPlaceholderData } = useGetFederalBills(
     {
@@ -99,7 +99,6 @@ export function FederalBills() {
   backPathParams.set("offset", String(offset));
   if (searchQuery) backPathParams.set("q", searchQuery);
   if (policyArea) backPathParams.set("policyArea", policyArea);
-  if (statusEnabled) backPathParams.set("status", "on");
   if (selectedStages.length > 0) backPathParams.set("stages", selectedStages.join(","));
   const backPath = `/bills/federal?${backPathParams.toString()}`;
   const scrollStorageKey = `scroll:${backPath}:bills`;
@@ -209,27 +208,14 @@ export function FederalBills() {
             showResults={false}
           />
         </div>
-        <StatusFilterControls
-          statusEnabled={statusEnabled}
-          onToggleStatus={() => {
-            setStatusEnabled((prev) => {
-              const next = !prev;
-              if (!next) setSelectedStages([]);
-              return next;
-            });
-            setOffset(0);
-          }}
-        />
       </div>
-      {statusEnabled && (
-        <StatusStagePills
-          selectedStages={selectedStages}
-          onToggleStage={(stage) => {
-            setSelectedStages((prev) => (prev.includes(stage) ? [] : [stage]));
-            setOffset(0);
-          }}
-        />
-      )}
+      <StatusStagePills
+        selectedStages={selectedStages}
+        onToggleStage={(stage) => {
+          setSelectedStages((prev) => toggleBillStageSelection(prev, stage));
+          setOffset(0);
+        }}
+      />
 
       {policyArea && (
         <div className="flex items-center gap-2 mb-2">
@@ -278,7 +264,7 @@ export function FederalBills() {
           {!loadingBase && billsToRender.length === 0 && (
             <div className="text-center py-20 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-30" />
-              <p>No bills found{statusEnabled && selectedStages.length > 0 ? " for selected status filters" : policyArea ? ` in policy area "${policyArea}"` : ""}.</p>
+              <p>No bills found{selectedStages.length > 0 ? " for selected bill statuses" : policyArea ? ` in policy area "${policyArea}"` : ""}.</p>
             </div>
           )}
 

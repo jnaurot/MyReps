@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // ── Fixture ──────────────────────────────────────────────────────────────────
-// A rep with 2 passed bills, 1 passed resolution, 1 passed amendment.
+// A rep with 2 active bills, 1 active resolution, 1 active amendment.
 const PASSED_BILLS = [
   { id: "119-hr-10", title: "Infrastructure Act", itemCategory: "bill" },
   { id: "119-hr-11", title: "Energy Reform Act",  itemCategory: "bill" },
@@ -20,7 +20,7 @@ const PASSED_ALL = [...PASSED_BILLS, ...PASSED_RESOLUTIONS, ...PASSED_AMENDMENTS
 
 function fk(category: string) {
   // Matches BillsList filterKey: `${billRole}|${category}|${query}|${stageQuery}|${policyArea}`
-  return `sponsored|${category}||passed|`;
+  return `sponsored|${category}||active|`;
 }
 
 // ── Minimal hook — mirrors the mobile useEffect block in BillsList ───────────
@@ -85,7 +85,7 @@ describe("BillsList source — mobile accumulation fix", () => {
 });
 
 // ── Behavioral tests ─────────────────────────────────────────────────────────
-describe("BillsList mobile accumulation — cycling categories with Passed status filter", () => {
+describe("BillsList mobile accumulation — cycling categories with Active Bills status filter", () => {
   it("cycle 1: All → Bills → Resolutions → Amendments shows correct counts", () => {
     const { result, rerender } = renderHook(
       (props: Parameters<typeof useMobileAccumulation>[0]) =>

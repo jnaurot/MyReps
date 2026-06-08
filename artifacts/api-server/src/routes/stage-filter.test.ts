@@ -18,6 +18,10 @@ describe("parseStageQuery", () => {
     expect(parseStageQuery("signed_enacted")).toEqual(["signed_enacted"]);
   });
 
+  it("parses the active filter key", () => {
+    expect(parseStageQuery("active")).toEqual(["active"]);
+  });
+
   it("returns an empty array for an empty string", () => {
     expect(parseStageQuery("")).toEqual([]);
   });
@@ -59,7 +63,7 @@ describe("GET /federal/bills — stage filtering integration", () => {
 
   it("a stageCondition is built when selectedStages are present", () => {
     expect(src).toContain(
-      "eq(federalStageColumn(stage), true)",
+      'stage === "active"',
     );
   });
 
@@ -120,7 +124,7 @@ describe("GET /state/bills/search — stage filtering integration", () => {
   });
 
   it("search route builds a stageCondition from selectedStages", () => {
-    expect(src).toContain("stateStageColumn(stage)");
+    expect(src).toContain("buildStateBillsStageCondition(selectedStages)");
   });
 
   it("search route includes stageCondition in conditions array", () => {
@@ -129,6 +133,6 @@ describe("GET /state/bills/search — stage filtering integration", () => {
 
   it("OpenStates fallback applies stage filtering in memory when stages are active", () => {
     expect(src).toContain("computeLegislationStageFlags");
-    expect(src).toContain("selectedStages.some((stage) => flags[stage])");
+    expect(src).toContain("matchesLegislationFilters(selectedStages, flags)");
   });
 });

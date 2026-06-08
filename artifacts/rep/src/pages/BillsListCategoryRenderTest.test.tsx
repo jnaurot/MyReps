@@ -1,6 +1,6 @@
 // Component-level regression test for the mobile bill accumulation bug.
 // Renders BillsList in mobile mode, cycles through All/Bills/Resolutions/Amendments
-// twice with a Passed status filter active, and asserts:
+// twice with an Active Bills filter active, and asserts:
 //   1. The number of rendered bill-item DOM elements matches the API totalCount.
 //   2. The mobile counter text (e.g. "2/2") matches — denominator comes from API,
 //      numerator from allBills.length — so a mismatch (e.g. "3/2") fails the test.
@@ -30,7 +30,7 @@ beforeAll(() => {
 });
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
-// Rep with 2 passed bills, 1 passed resolution, 1 passed amendment.
+// Rep with 2 active bills, 1 active resolution, 1 active amendment.
 const BY_CATEGORY: Record<string, any[]> = {
   all: [
     { id: "119-hr-10",    title: "Infrastructure Act",  number: "HR 10",    congress: "119", itemCategory: "bill"       },
@@ -121,9 +121,8 @@ describe("BillsList — rendered items match totalCount after cycling categories
       { wrapper },
     );
 
-    // Enable Status filter and choose "Passed"
-    fireEvent.click(screen.getByRole("button", { name: /Status/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Passed" }));
+    // Choose "Active Bills"
+    fireEvent.click(screen.getByRole("button", { name: "Active Bills" }));
 
     // ── Cycle 1 ──────────────────────────────────────────────────────────────
     await go(/^All \(/, 4);         // All: 4 items → counter "4/4"

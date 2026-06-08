@@ -25,12 +25,36 @@ function decodeHtmlEntities(text: string): string {
   });
 }
 
-export function normalizeSummaryText(summary?: string | null): string | null {
-  if (!summary) return null;
+function normalizePlainText(text?: string | null): string | null {
+  if (!text) return null;
 
-  return decodeHtmlEntities(summary)
+  return decodeHtmlEntities(text)
     .replace(/<[^>]*>/g, " ")
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function normalizeSummaryText(
+  summary?: string | null,
+  title?: string | null,
+): string | null {
+  const normalizedSummary = normalizePlainText(summary);
+  if (!normalizedSummary) return null;
+
+  const normalizedTitle = normalizePlainText(title);
+  if (
+    normalizedTitle &&
+    normalizedSummary.startsWith(normalizedTitle) &&
+    normalizedSummary.length > normalizedTitle.length
+  ) {
+    const remainder = normalizedSummary.slice(normalizedTitle.length).trimStart();
+    if (!remainder) return normalizedTitle;
+    if (/^[:;,.!?-]/.test(remainder)) {
+      return `${normalizedTitle}${remainder}`;
+    }
+    return `${normalizedTitle}: ${remainder}`;
+  }
+
+  return normalizedSummary;
 }

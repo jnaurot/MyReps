@@ -39,15 +39,16 @@ import {
   partyColor,
   formatMoney,
   BILL_STAGE_OPTIONS,
-  BILL_STAGE_QUERY_KEYS,
+  buildBillStageQuery,
   billNumberClass,
+  toggleBillStageSelection,
   type BillStage,
 } from "@/lib/rep-utils";
 import { PageShell } from "@/components/layout/PageShell";
 import { ListViewport } from "@/components/layout/ListViewport";
 import { PaginationFooter } from "@/components/layout/PaginationFooter";
 import { FilterBar } from "@/components/layout/FilterBar";
-import { StatusFilterControls, StatusStagePills } from "@/components/layout/StatusFilterControls";
+import { StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
@@ -60,9 +61,6 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   const initialParams = new URLSearchParams(pageSearch);
   const type = billType;
   const setType = onBillTypeChange;
-  const [statusEnabled, setStatusEnabled] = useState(
-    initialParams.get("status") === "on",
-  );
   const [selectedStages, setSelectedStages] = useState<BillStage[]>(() => {
     const raw = initialParams.get("stages");
     if (!raw) return [];
@@ -87,10 +85,8 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   const sentinelRef = useRef<HTMLDivElement>(null);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
-  const statusFilterActive = statusEnabled && selectedStages.length > 0;
-  const stageQuery = statusFilterActive
-    ? selectedStages.map((stage) => BILL_STAGE_QUERY_KEYS[stage]).join(",")
-    : undefined;
+  const statusFilterActive = selectedStages.length > 0;
+  const stageQuery = buildBillStageQuery(selectedStages);
 
   const filterKey = `${type}|${debouncedSearchQuery}|${stageQuery ?? ""}`;
 
@@ -118,7 +114,6 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   backPathParams.set("type", type);
   backPathParams.set("offset", String(offset));
   if (debouncedSearchQuery) backPathParams.set("q", debouncedSearchQuery);
-  if (statusEnabled) backPathParams.set("status", "on");
   if (selectedStages.length > 0)
     backPathParams.set("stages", selectedStages.join(","));
   const backPath = `/rep/state/${memberId}?${backPathParams.toString()}`;
@@ -230,17 +225,6 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
         <div className="flex gap-2">
           <Button size="sm" variant={type === "sponsored" ? "default" : "outline"} onClick={() => { setType("sponsored"); setOffset(0); }}>Sponsored</Button>
           <Button size="sm" variant={type === "cosponsored" ? "default" : "outline"} onClick={() => { setType("cosponsored"); setOffset(0); }}>Cosponsored</Button>
-          <StatusFilterControls
-            statusEnabled={statusEnabled}
-            onToggleStatus={() => {
-              setStatusEnabled((prev) => {
-                const next = !prev;
-                if (!next) setSelectedStages([]);
-                return next;
-              });
-              setOffset(0);
-            }}
-          />
           {onRefresh && (
             <Button
               size="sm"
@@ -255,15 +239,13 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
           )}
         </div>
       </FilterBar>
-      {statusEnabled && (
-        <StatusStagePills
-          selectedStages={selectedStages}
-          onToggleStage={(stage) => {
-            setSelectedStages((prev) => (prev.includes(stage) ? [] : [stage]));
-            setOffset(0);
-          }}
-        />
-      )}
+      <StatusStagePills
+        selectedStages={selectedStages}
+        onToggleStage={(stage) => {
+          setSelectedStages((prev) => toggleBillStageSelection(prev, stage));
+          setOffset(0);
+        }}
+      />
       <FilterBar className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input

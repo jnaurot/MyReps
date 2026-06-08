@@ -8,6 +8,11 @@ export const LEGISLATION_STAGE_KEYS = [
 ] as const;
 
 export type LegislationStageKey = (typeof LEGISLATION_STAGE_KEYS)[number];
+export const LEGISLATION_FILTER_KEYS = [
+  ...LEGISLATION_STAGE_KEYS,
+  "active",
+] as const;
+export type LegislationFilterKey = (typeof LEGISLATION_FILTER_KEYS)[number];
 
 export type LegislationStageFlags = Record<LegislationStageKey, boolean>;
 
@@ -85,11 +90,24 @@ export function computeLegislationStageFlags({
   };
 }
 
-export function parseStageQuery(raw?: string | null): LegislationStageKey[] {
+export function isActiveLegislation(flags: LegislationStageFlags): boolean {
+  return !flags.dead && !flags.signed_enacted;
+}
+
+export function matchesLegislationFilters(
+  selectedFilters: LegislationFilterKey[],
+  flags: LegislationStageFlags,
+): boolean {
+  return selectedFilters.some((filter) =>
+    filter === "active" ? isActiveLegislation(flags) : flags[filter],
+  );
+}
+
+export function parseStageQuery(raw?: string | null): LegislationFilterKey[] {
   if (!raw) return [];
-  const allowed = new Set<string>(LEGISLATION_STAGE_KEYS);
+  const allowed = new Set<string>(LEGISLATION_FILTER_KEYS);
   return raw
     .split(",")
     .map((stage) => stage.trim())
-    .filter((stage): stage is LegislationStageKey => allowed.has(stage));
+    .filter((stage): stage is LegislationFilterKey => allowed.has(stage));
 }
