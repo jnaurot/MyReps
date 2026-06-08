@@ -62,6 +62,7 @@ import {
 } from "../lib/legislationStages";
 import { computeFederalBillProgress, getCurrentCongressNumber } from "../lib/federalBillProgress";
 import { shouldRefetchField } from "../lib/summaryCacheUtils";
+import { normalizeSummaryText } from "../lib/summaryText";
 
 const router = Router();
 
@@ -2575,12 +2576,10 @@ router.get(
         needsSummaryFetch && summaryData.status === "fulfilled" && summaryData.value !== null
           ? (summaryData.value.summaries?.item?.[0]?.text ?? summaryData.value.summaries?.[0]?.text ?? null)
           : null;
-      const fetchedSummary = fetchedSummaryRaw
-        ? fetchedSummaryRaw.replace(/<[^>]*>/g, "")
-        : null;
+      const fetchedSummary = normalizeSummaryText(fetchedSummaryRaw);
       const summary = needsSummaryFetch
         ? fetchedSummary
-        : (cached?.summary ?? null);
+        : normalizeSummaryText(cached?.summary ?? null);
 
       let textUrl: string | null | undefined;
       if (needsTextFetch) {
