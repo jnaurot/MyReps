@@ -1464,7 +1464,7 @@ router.post("/federal/members/:bioguideId/bills/refresh", async (req, res) => {
         .from(federalMemberBillRolesTable)
         .innerJoin(federalBillsTable, refreshJoin)
         .where(and(...refreshMemberCond))
-        .orderBy(desc(federalBillsTable.introducedDate))
+        .orderBy(desc(federalBillsTable.introducedDate), asc(federalBillsTable.id))
         .limit(20)
         .offset(0),
 
