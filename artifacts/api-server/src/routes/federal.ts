@@ -63,6 +63,7 @@ import {
   type LegislationStageKey,
 } from "../lib/legislationStages";
 import { computeFederalBillProgress, getCurrentCongressNumber } from "../lib/federalBillProgress";
+import { dedupeFederalBillVotes } from "../lib/federalBillVotes";
 import { shouldRefetchField } from "../lib/summaryCacheUtils";
 import { normalizeSummaryText } from "../lib/summaryText";
 
@@ -2587,7 +2588,7 @@ router.get(
         seenActions.add(key);
         return [{ date, text, type: a.type }];
       });
-      const votes = rawActions.flatMap((a: any) => {
+      const votes = dedupeFederalBillVotes(rawActions.flatMap((a: any) => {
         const recordedVotes: any[] = a.recordedVotes ?? [];
         if (recordedVotes.length === 0) return [];
         const countMatch = (a.text ?? "").match(/(\d+)\s*[-–]\s*(\d+)/);
@@ -2605,7 +2606,7 @@ router.get(
           presentCount,
           sourceUrl: rv.url,
         }));
-      });
+      }));
       const progress = computeFederalBillProgress({
         congress,
         latestAction: bill.latestAction?.text,
