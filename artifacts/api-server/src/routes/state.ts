@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, asc, desc, sql, inArray } from "drizzle-orm";
 import {
   db,
   normalizeStateVotePosition,
@@ -566,9 +566,9 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
           .from(stateBillsTable)
           .where(and(...conditions))
           .orderBy(
-            q
-              ? sql`GREATEST(ts_rank(${stateBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${stateBillsTable.title})) desc`
-              : desc(stateBillsTable.introducedDate),
+            ...(q
+              ? [sql`GREATEST(ts_rank(${stateBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${stateBillsTable.title})) desc`]
+              : [desc(stateBillsTable.introducedDate), asc(stateBillsTable.id)]),
           )
           .limit(limit)
           .offset(offset),
@@ -721,7 +721,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
         .select()
         .from(stateBillsTable)
         .where(and(...dbConditions))
-        .orderBy(desc(stateBillsTable.introducedDate))
+        .orderBy(desc(stateBillsTable.introducedDate), asc(stateBillsTable.id))
         .limit(limit)
         .offset(offset),
     ]);
@@ -936,7 +936,7 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
       })
       .from(stateVoteRecordsTable)
       .where(and(...baseConditions))
-      .orderBy(desc(stateVoteRecordsTable.votedAt))
+      .orderBy(desc(stateVoteRecordsTable.votedAt), asc(stateVoteRecordsTable.id))
       .limit(limit)
       .offset(offset);
 
@@ -993,7 +993,7 @@ router.get("/state/bills", async (req, res) => {
         .select()
         .from(stateBillsTable)
         .where(and(...dbConditions))
-        .orderBy(desc(stateBillsTable.introducedDate))
+        .orderBy(desc(stateBillsTable.introducedDate), asc(stateBillsTable.id))
         .limit(limit)
         .offset(offset);
       req.log.info(

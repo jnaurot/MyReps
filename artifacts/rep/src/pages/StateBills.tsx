@@ -29,6 +29,7 @@ import {
 } from "@/lib/rep-utils";
 import { StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useMobileInfiniteScroll } from "@/hooks/useMobileInfiniteScroll";
 
 type Chamber = "upper" | "lower" | "all";
 
@@ -65,7 +66,6 @@ export function StateBills() {
   const appendedOffsetRef = useRef(new Set<number>());
   const prevFilterKeyRef = useRef<string | null>(null);
   const scrollRatioRef = useRef(0);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const stateCode = selectedState;
   const stateName = getStateName(stateCode);
@@ -184,23 +184,15 @@ export function StateBills() {
     return () => window.cancelAnimationFrame(id);
   }, [allBills.length, isMobile]);
 
-  // Mobile: IntersectionObserver to trigger next page load
-  useEffect(() => {
-    if (!isMobile) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loadingBase && !isPlaceholderDataBase) {
-          const nextOffset = allBills.length;
-          if (nextOffset < effectiveTotalCount) setOffset(nextOffset);
-        }
-      },
-      { root: listViewportRef.current, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobile, loadingBase, isPlaceholderDataBase, allBills.length, effectiveTotalCount]);
+  const { sentinelRef, triggerIfNearBottom } = useMobileInfiniteScroll({
+    isMobile,
+    listViewportRef,
+    allItemsLength: allBills.length,
+    totalCount: effectiveTotalCount,
+    loading: loadingBase,
+    isPlaceholder: isPlaceholderDataBase,
+    onLoadNext: setOffset,
+  });
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     if (!isMobile) return;
@@ -210,6 +202,7 @@ export function StateBills() {
     scrollRatioRef.current = ratio;
     const visible = Math.max(1, Math.round(ratio * allBills.length));
     setLastVisible(Math.min(visible, allBills.length));
+    triggerIfNearBottom(e.currentTarget);
   };
 
   const billsToRender = isMobile ? allBills : visibleBills;
@@ -288,7 +281,6 @@ export function StateBills() {
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
         <div>
           {loadingBase && (!isMobile || allBills.length === 0) && (
@@ -318,14 +310,12 @@ export function StateBills() {
             </div>
           )}
 
-          {billsToRender.map((bill, index) => {
-            const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
+          {billsToRender.map((bill) => {
             return (
               <Link
                 key={bill.id}
                 data-testid="bill-item"
                 href={`/bills/state/${encodeURIComponent(bill.id)}?from=${encodeURIComponent(backPath)}&name=${encodeURIComponent(`${stateName} State Bills`)}`}
-                className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
                 onClick={() => {
                   if (typeof window === "undefined") return;
                   const top = listViewportRef.current?.scrollTop ?? 0;
@@ -365,7 +355,7 @@ export function StateBills() {
             );
           })}
 
-          {isMobile && <div ref={sentinelRef} className="h-1" />}
+          {isMobile && <div ref={sentinelRef} className="h-16" />}
         </div>
       </ListViewport>
 

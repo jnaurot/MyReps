@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useMobileInfiniteScroll } from "@/hooks/useMobileInfiniteScroll";
 import { useParams, Link, useSearch, useSearchParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -82,7 +83,6 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   const appendedOffsetRef = useRef(new Set<number>());
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
   const statusFilterActive = selectedStages.length > 0;
@@ -187,25 +187,15 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
     return () => window.cancelAnimationFrame(id);
   }, [allBills.length, isMobile]);
 
-  // Mobile: IntersectionObserver to trigger next page load
-  useEffect(() => {
-    if (!isMobile) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading && !isPlaceholderData) {
-          const nextOffset = allBills.length;
-          if (nextOffset < effectiveTotalCount) {
-            setOffset(nextOffset);
-          }
-        }
-      },
-      { root: listViewportRef.current, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobile, isLoading, isPlaceholderData, allBills.length, effectiveTotalCount]);
+  const { sentinelRef, triggerIfNearBottom } = useMobileInfiniteScroll({
+    isMobile,
+    listViewportRef,
+    allItemsLength: allBills.length,
+    totalCount: effectiveTotalCount,
+    loading: isLoading,
+    isPlaceholder: isPlaceholderData,
+    onLoadNext: setOffset,
+  });
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     if (!isMobile) return;
@@ -215,6 +205,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
     scrollRatioRef.current = ratio;
     const visible = Math.max(1, Math.round(ratio * allBills.length));
     setLastVisible(Math.min(visible, allBills.length));
+    triggerIfNearBottom(e.currentTarget);
   };
 
   const billsToRender = isMobile ? (allBills as typeof visibleBills) : visibleBills;
@@ -262,7 +253,6 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
         {isLoading && !allBills.length && <div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}</div>}
 
@@ -284,13 +274,11 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
           <p className="text-muted-foreground text-center py-10">No bills found.</p>
         )}
 
-        {!error && billsToRender.map((bill, index) => {
-          const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
+        {!error && billsToRender.map((bill) => {
           return (
             <Link
               key={bill.id}
               href={`/bills/state/${encodeURIComponent(bill.id)}${fromParam}`}
-              className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
               onClick={() => {
                 if (typeof window === "undefined") return;
                 const top = listViewportRef.current?.scrollTop ?? 0;
@@ -316,7 +304,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
             </Link>
           );
         })}
-        {isMobile && <div ref={sentinelRef} className="h-1" />}
+        {isMobile && <div ref={sentinelRef} className="h-16" />}
       </ListViewport>
 
       <div className="sm:hidden text-xs text-center text-muted-foreground py-2 shrink-0">
@@ -358,7 +346,6 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
   const appendedOffsetRef = useRef(new Set<number>());
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const restoredScrollRef = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
@@ -422,25 +409,15 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
     return () => window.cancelAnimationFrame(id);
   }, [allVotes.length, isMobile]);
 
-  // Mobile: IntersectionObserver to trigger next page load
-  useEffect(() => {
-    if (!isMobile) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading && !isPlaceholderData) {
-          const nextOffset = allVotes.length;
-          if (nextOffset < totalCount) {
-            setOffset(nextOffset);
-          }
-        }
-      },
-      { root: listViewportRef.current, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobile, isLoading, isPlaceholderData, allVotes.length, totalCount]);
+  const { sentinelRef, triggerIfNearBottom } = useMobileInfiniteScroll({
+    isMobile,
+    listViewportRef,
+    allItemsLength: allVotes.length,
+    totalCount,
+    loading: isLoading,
+    isPlaceholder: isPlaceholderData,
+    onLoadNext: setOffset,
+  });
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     if (!isMobile) return;
@@ -450,6 +427,7 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
     scrollRatioRef.current = ratio;
     const visible = Math.max(1, Math.round(ratio * allVotes.length));
     setLastVisible(Math.min(visible, allVotes.length));
+    triggerIfNearBottom(e.currentTarget);
   };
 
   const shouldUseCurrentPageVotes =
@@ -604,7 +582,6 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
         {isLoading && !allVotes.length && <div>{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>}
 
@@ -613,13 +590,11 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
         )}
 
         {votesToRender.map((vote, i) => {
-          const isSnapPoint = isMobile && i > 0 && i % 20 === 0;
           const href = vote.billId ? `${stateBillPath(vote.billId)}${fromParam}` : null;
           return (
             <VoteListCard
               key={i}
               href={href}
-              className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
               badges={[
                 {
                   label: memberChamber ?? "State",
@@ -646,7 +621,7 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
             />
           );
         })}
-        {isMobile && <div ref={sentinelRef} className="h-1" />}
+        {isMobile && <div ref={sentinelRef} className="h-16" />}
       </ListViewport>
 
       <div className="sm:hidden text-xs text-center text-muted-foreground py-2 shrink-0">

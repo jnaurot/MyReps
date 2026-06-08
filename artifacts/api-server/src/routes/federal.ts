@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, or, desc, sql, inArray, lt } from "drizzle-orm";
+import { eq, and, or, asc, desc, sql, inArray, lt } from "drizzle-orm";
 import { XMLParser } from "fast-xml-parser";
 import {
   getCachedPhoto,
@@ -1277,9 +1277,9 @@ router.get("/federal/members/:bioguideId/bills", async (req, res) => {
           .innerJoin(federalBillsTable, joinClause)
           .where(and(...filterConditions))
           .orderBy(
-            q
-              ? sql`GREATEST(ts_rank(${federalBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${federalBillsTable.title})) desc`
-              : desc(federalBillsTable.introducedDate),
+            ...(q
+              ? [sql`GREATEST(ts_rank(${federalBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${federalBillsTable.title})) desc`]
+              : [desc(federalBillsTable.introducedDate), asc(federalBillsTable.id)]),
           )
           .limit(limit)
           .offset(offset),
@@ -1731,7 +1731,7 @@ router.get("/federal/members/:bioguideId/house-votes", async (req, res) => {
         eq(houseVoteRecordsTable.voteId, houseVotesTable.id),
       )
       .where(and(...filterConditions))
-      .orderBy(desc(houseVotesTable.voteDate))
+      .orderBy(desc(houseVotesTable.voteDate), asc(houseVotesTable.id))
       .limit(limit)
       .offset(offset);
 
@@ -2065,7 +2065,7 @@ router.get("/federal/members/:bioguideId/senate-votes", async (req, res) => {
         eq(senatorVotePositionsTable.voteId, senateRollCallVotesTable.id),
       )
       .where(and(...filterConditions))
-      .orderBy(desc(senateRollCallVotesTable.voteDate))
+      .orderBy(desc(senateRollCallVotesTable.voteDate), asc(senateRollCallVotesTable.id))
       .limit(limit)
       .offset(offset);
 
@@ -2291,7 +2291,7 @@ router.get("/federal/bills", async (req, res) => {
         })
         .from(federalBillsTable)
         .where(and(...dbConditions))
-        .orderBy(desc(federalBillsTable.introducedDate))
+        .orderBy(desc(federalBillsTable.introducedDate), asc(federalBillsTable.id))
         .limit(limit)
         .offset(offset);
 
@@ -2444,9 +2444,9 @@ router.get("/federal/bills/search", async (req, res) => {
       .from(federalBillsTable)
       .where(and(...conditions))
       .orderBy(
-        q
-          ? sql`GREATEST(ts_rank(${federalBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${federalBillsTable.title})) desc`
-          : desc(federalBillsTable.introducedDate),
+        ...(q
+          ? [sql`GREATEST(ts_rank(${federalBillsTable.searchVector}, websearch_to_tsquery('english', ${q})), similarity(${q}, ${federalBillsTable.title})) desc`]
+          : [desc(federalBillsTable.introducedDate), asc(federalBillsTable.id)]),
       )
       .limit(limit)
       .offset(offset);

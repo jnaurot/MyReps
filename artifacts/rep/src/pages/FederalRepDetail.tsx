@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useMobileInfiniteScroll } from "@/hooks/useMobileInfiniteScroll";
 import { useParams, Link, useSearch, useSearchParams } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -197,7 +198,6 @@ export function BillsList({
   const appendedOffsetRef = useRef(new Set<number>());
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
 
@@ -374,25 +374,15 @@ export function BillsList({
     return () => window.cancelAnimationFrame(id);
   }, [allBills.length, isMobile]);
 
-  // Mobile: IntersectionObserver to trigger next page load
-  useEffect(() => {
-    if (!isMobile) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading && !isPlaceholderData) {
-          const nextOffset = allBills.length;
-          if (nextOffset < displayedTotalCount) {
-            setOffset(nextOffset);
-          }
-        }
-      },
-      { root: listViewportRef.current, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobile, isLoading, isPlaceholderData, allBills.length, displayedTotalCount]);
+  const { sentinelRef, triggerIfNearBottom } = useMobileInfiniteScroll({
+    isMobile,
+    listViewportRef,
+    allItemsLength: allBills.length,
+    totalCount: displayedTotalCount,
+    loading: isLoading,
+    isPlaceholder: isPlaceholderData,
+    onLoadNext: setOffset,
+  });
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     if (!isMobile) return;
@@ -402,6 +392,7 @@ export function BillsList({
     scrollRatioRef.current = ratio;
     const visible = Math.max(1, Math.round(ratio * allBills.length));
     setLastVisible(Math.min(visible, allBills.length));
+    triggerIfNearBottom(e.currentTarget);
   };
 
   function internalBillHref(bill: {
@@ -549,7 +540,6 @@ export function BillsList({
           <ListViewport
             ref={listViewportRef}
             onScroll={handleScroll}
-            className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
           >
             <div>
               {isLoading && !allBills.length && (
@@ -566,8 +556,7 @@ export function BillsList({
                 </p>
               )}
 
-              {billsToRender.map((bill, index) => {
-                const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
+              {billsToRender.map((bill) => {
                 const href = internalBillHref(bill);
                 const compactMode = statusFilterActive;
                 const card = (
@@ -644,7 +633,6 @@ export function BillsList({
                     key={bill.id}
                     data-testid="bill-item"
                     href={href}
-                    className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
                     onClick={() => {
                       if (typeof window === "undefined") return;
                       const top = listViewportRef.current?.scrollTop ?? 0;
@@ -657,10 +645,10 @@ export function BillsList({
                     {card}
                   </Link>
                 ) : (
-                  <div key={bill.id} data-testid="bill-item" className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}>{card}</div>
+                  <div key={bill.id} data-testid="bill-item">{card}</div>
                 );
               })}
-              {isMobile && <div ref={sentinelRef} className="h-1" />}
+              {isMobile && <div ref={sentinelRef} className="h-16" />}
             </div>
           </ListViewport>
           <div className="sm:hidden text-xs text-center text-muted-foreground py-2 shrink-0">
@@ -755,7 +743,6 @@ function VotesList({
   const appendedOffsetRef = useRef(new Set<number>());
   const scrollRatioRef = useRef(0);
   const [lastVisible, setLastVisible] = useState(1);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const restoredScrollRef = useRef(false);
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
@@ -841,25 +828,15 @@ function VotesList({
     return () => window.cancelAnimationFrame(id);
   }, [allVotes.length, isMobile]);
 
-  // Mobile: IntersectionObserver to trigger next page load
-  useEffect(() => {
-    if (!isMobile) return;
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading && !isPlaceholderData) {
-          const nextOffset = allVotes.length;
-          if (nextOffset < totalCount) {
-            setOffset(nextOffset);
-          }
-        }
-      },
-      { root: listViewportRef.current, rootMargin: "200px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [isMobile, isLoading, isPlaceholderData, allVotes.length, totalCount]);
+  const { sentinelRef, triggerIfNearBottom } = useMobileInfiniteScroll({
+    isMobile,
+    listViewportRef,
+    allItemsLength: allVotes.length,
+    totalCount,
+    loading: isLoading,
+    isPlaceholder: isPlaceholderData,
+    onLoadNext: setOffset,
+  });
 
   const handleScroll: React.UIEventHandler<HTMLDivElement> = (e) => {
     if (!isMobile) return;
@@ -869,6 +846,7 @@ function VotesList({
     scrollRatioRef.current = ratio;
     const visible = Math.max(1, Math.round(ratio * allVotes.length));
     setLastVisible(Math.min(visible, allVotes.length));
+    triggerIfNearBottom(e.currentTarget);
   };
 
   const shouldUseCurrentPageVotes =
@@ -1023,7 +1001,6 @@ function VotesList({
       <ListViewport
         ref={listViewportRef}
         onScroll={handleScroll}
-        className={isMobile ? "[scroll-snap-type:y_proximity]" : undefined}
       >
         {isLoading && !allVotes.length && (
           <div>
@@ -1039,15 +1016,13 @@ function VotesList({
           </p>
         )}
 
-        {votesToRender.map((vote: any, index: number) => {
-          const isSnapPoint = isMobile && index > 0 && index % 20 === 0;
+        {votesToRender.map((vote: any) => {
           const href = buildFederalVoteBillHref(vote, fromParam);
           const key = `${vote.congress ?? "unknown"}-${vote.date ?? "undated"}-${vote.rollCallNumber}`;
           return (
             <VoteListCard
               key={key}
               href={href}
-              className={isSnapPoint ? "[scroll-snap-align:start]" : undefined}
               badges={[
                 {
                   label: memberChamber ?? "Congress",
@@ -1080,7 +1055,7 @@ function VotesList({
             />
           );
         })}
-        {isMobile && <div ref={sentinelRef} className="h-1" />}
+        {isMobile && <div ref={sentinelRef} className="h-16" />}
       </ListViewport>
 
       <div className="sm:hidden text-xs text-center text-muted-foreground py-2 shrink-0">

@@ -11,7 +11,11 @@ This is a **Maryland civic information web app** built as a pnpm workspace monor
 - `pnpm install` — Install dependencies. The root `preinstall` script enforces pnpm and blocks npm/yarn.
 - `pnpm run typecheck` — Full typecheck across all packages (libs + artifacts + scripts).
 - `pnpm run typecheck:libs` — Typecheck only the referenced libraries (`lib/db`, `lib/api-client-react`, `lib/api-zod`).
-- `pnpm run test` — Run the Vitest test suite.
+- `pnpm run test` — Run Vitest unit tests **and** Playwright e2e tests.
+- `vitest run` — Run only Vitest unit tests (no Playwright).
+- `vitest run --reporter=verbose artifacts/api-server/src/lib/http.test.ts` — Run a single test file.
+- `pnpm run test:ui` — Run Playwright e2e snapshot tests (requires `pnpm --filter @workspace/rep run serve` running).
+- `pnpm run test:ui:update` — Regenerate Playwright screenshot snapshots.
 - `pnpm run build` — Typecheck everything, then build all packages recursively.
 - `pnpm --filter @workspace/api-server run dev` — Build and start the API server in development mode.
 - `pnpm --filter @workspace/rep run dev` — Start the Vite dev server for the frontend.
@@ -20,7 +24,11 @@ This is a **Maryland civic information web app** built as a pnpm workspace monor
 - `pnpm --filter @workspace/api-spec run codegen` — Regenerate React Query hooks and Zod schemas from `openapi.yaml`.
 - `pnpm --filter @workspace/db run push` — Push Drizzle schema changes to the database.
 
-Vitest is configured at the workspace root for focused unit tests around shared utilities and backend helpers.
+**Dev convenience scripts** (run from repo root):
+- `./dev-back.sh` — Starts/creates the Docker Postgres container, pushes the DB schema, and starts the API server on port 3001.
+- `./dev-front.sh` — Starts the frontend dev server on port 5101.
+
+**Deployment:** `./deploy.sh` typechecks and builds the frontend locally, then rsyncs source to a VPS, installs dependencies, builds the backend remotely, and restarts it via pm2. The target is `politician.bawlmorean.com`.
 
 ## Monorepo structure
 
@@ -89,11 +97,13 @@ The server requires `PORT` and external API keys (`CONGRESS_API_KEY`, `OPENSTATE
 - **ORM:** Drizzle ORM with `drizzle-zod` for schema validation.
 - **Driver:** `node-postgres` (`pg` Pool).
 - **Connection:** `DATABASE_URL` is required.
-- **Schema:** Currently mostly empty (`lib/db/src/schema/index.ts` exports nothing). The pattern for adding tables is documented in that file: define a Drizzle table, export an insert schema via `createInsertSchema`, and export inferred types.
+- **Schema:** `lib/db/src/schema/` contains tables for federal bills, members, committees, member-bill roles, cache status, house/senate votes, state bills, state legislators, state vote records, and provider rate-limit status. Each file follows the pattern: define a Drizzle table, export an insert schema via `createInsertSchema`, and export inferred types.
+- **Full-text search:** `lib/db/src/initTriggers.ts` creates PostgreSQL triggers that maintain `search_vector` tsvector columns on `federal_bills` and `state_bills` using `pg_trgm`. Call `initTriggers(pool)` after connecting.
+- **Local DB:** `docker-compose.yml` defines a `postgis/postgis:17-3.5` container named `civic-hub-postgres` (port 5432). `dev-back.sh` starts it automatically.
 
 ## Environment variables
 
-The following are required for development:
+The following are required for development (stored in an untracked `.env` at the repo root):
 
 - `PORT` — Port for the API server (also used by Vite config for the frontend dev server).
 - `BASE_PATH` — Base path for the frontend (e.g., `/`).
@@ -103,14 +113,21 @@ The following are required for development:
 - `CONGRESS_API_KEY` — Congress.gov API key.
 - `OPENSTATES_API_KEY` — OpenStates API key.
 - `GOOGLE_CIVIC_API_KEY` — Google Civic Information API key.
+- `PHOTO_CACHE_DIR` — Directory for caching legislator photos as binary files (defaults to `.`; cache goes in `.member-photo-cache/`).
 - `CORS_ORIGIN` — Optional production CORS origin. If omitted in production, the API emits no cross-origin CORS allowance.
-
-These are typically stored in an untracked `.env` file at the repo root.
 
 ## Important implementation notes
 
-- **Testing:** Vitest tests live next to the code they cover. Prefer pure utility and API boundary tests with mocked upstream data before adding live-provider coverage.
 - **No linting setup:** There is no ESLint or Biome configuration. Prettier is the only formatter.
 - **Do not edit generated code:** Always modify `openapi.yaml` and rerun Orval codegen rather than editing `lib/api-client-react/src/generated/` or `lib/api-zod/src/generated/`.
 - **External API error handling:** The backend routes generally catch external API failures and return empty arrays or 500 errors rather than propagating raw third-party responses.
 - **Census geocoder normalization:** The representatives route uses the Census geocoder (`geocoding.geo.census.gov`) to derive congressional district and state legislative districts. State legislative district keys from Census are year-prefixed and may contain leading zeros; the code normalizes them to plain integer strings before passing to OpenStates.
+- **Logging:** All backend logging must use pino (`req.log` for request-scoped, `logger` from `lib/logger.ts` for module-level). Never use `console.log`/`console.warn` — source-guard tests enforce this.
+- **HTTP helpers:** `lib/http.ts` exports `fetchWithTimeout` (12s default) and `withRetry` (3 attempts, exponential back-off). Use these for all upstream requests. `ProviderRateLimitError` in `lib/respond.ts` signals rate-limit state to callers and should not be retried.
+- **Caching layers:** The backend uses three caching mechanisms: the database (for federal/state bills, members, vote records), `photoCache.ts` (filesystem binary cache for legislator photos), and `stateLegislatorCache.ts` (DB-backed stale-threshold cache for OpenStates data with an in-memory rate-limit fallback).
+
+## Test file naming conventions
+
+- `*.test.ts` / `*.test.tsx` — Standard unit tests. Always run.
+- `*.integration.test.ts` — Live-network tests gated on an env var (e.g., `process.env.CONGRESS_API_KEY ? describe : describe.skip`). Run automatically but skip silently when the key is absent.
+- `*.source.test.ts` — **Source-guard tests** that read source files as strings (`readFileSync`) and assert structural invariants (no `console.log`, required imports, presence/absence of patterns). Use these to enforce cross-file contracts that TypeScript cannot catch.
