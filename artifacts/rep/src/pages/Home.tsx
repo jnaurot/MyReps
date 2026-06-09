@@ -54,7 +54,7 @@ export function Home() {
   // Dropdown queries — fire while typing (debounced). Use standard query key functions so
   // the results queries below share the cache when activeTextQuery === debouncedQuery.
   const acFbParams = { q: debouncedQuery, limit: searchLimit };
-  const acSbParams = { q: debouncedQuery, jurisdiction: selectedState?.toLowerCase(), limit: searchLimit };
+  const acSbParams = { q: debouncedQuery, state: selectedState, limit: searchLimit };
   const acMemParams = { q: debouncedQuery, limit: searchLimit };
 
   const { data: acFederalBills } = useSearchFederalBills(acFbParams, {
@@ -125,7 +125,7 @@ export function Home() {
   // Results queries — fire after Enter. Share cache with dropdown queries above when
   // activeTextQuery === debouncedQuery (the normal case after a brief typing pause).
   const resFbParams = { q: activeTextQuery, limit: searchLimit };
-  const resSbParams = { q: activeTextQuery, jurisdiction: selectedState?.toLowerCase(), limit: searchLimit };
+  const resSbParams = { q: activeTextQuery, state: selectedState, limit: searchLimit };
   const resMemParams = { q: activeTextQuery, limit: searchLimit };
 
   const { data: federalBillsSearch, isLoading: fbLoading } = useSearchFederalBills(resFbParams, {
@@ -270,7 +270,7 @@ export function Home() {
                     <CardContent>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {member.party && <Badge className={`${partyColor(member.party)} hover:${partyColor(member.party)} font-medium text-xs`}>{member.party}</Badge>}
-                        {member.jurisdiction && <Badge variant="outline" className="text-xs">{member.jurisdiction}</Badge>}
+                        {member.state && <Badge variant="outline" className="text-xs">{member.state}</Badge>}
                       </div>
                     </CardContent>
                   </Card>
@@ -490,7 +490,7 @@ export function Home() {
                               </Avatar>
                               <div className="min-w-0">
                                 <p className="text-sm font-medium truncate">{m.name}</p>
-                                <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.jurisdiction}</p>
+                                <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.state}</p>
                               </div>
                             </Link>
                           ))}

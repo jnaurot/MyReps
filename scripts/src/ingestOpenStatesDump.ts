@@ -11,17 +11,14 @@
  *   JURISDICTION_ID       - OCD jurisdiction ID to ingest (default: ocd-jurisdiction/country:us/state:md/government)
  */
 import { Client } from "pg";
+import { normalizeOpenStatesStateLegislator, requireUsStateCode } from "@workspace/db";
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/civic_hub";
 const OPENSTATES_DB_URL = process.env.OPENSTATES_DB_URL ?? "postgresql://postgres:postgres@localhost:5432/openstates";
 const JURISDICTION_ID = process.env.JURISDICTION_ID ?? "ocd-jurisdiction/country:us/state:md/government";
 const BATCH_SIZE = Number(process.env.BATCH_SIZE ?? "5000");
 
-// Extract "md" or "dc" from jurisdiction ID
-const STATE_CODE =
-  JURISDICTION_ID.match(/state:([a-z]{2})/i)?.[1]?.toLowerCase() ??
-  JURISDICTION_ID.match(/district:([a-z]{2})/i)?.[1]?.toLowerCase() ??
-  "";
+const STATE_CODE = requireUsStateCode(JURISDICTION_ID, "JURISDICTION_ID");
 
 function log(...args: unknown[]) {
   console.log(`[${new Date().toISOString()}]`, ...args);
@@ -66,7 +63,7 @@ async function withClient(url: string, fn: (client: Client) => Promise<void>) {
 
 async function ingestLegislators(source: Client, target: Client) {
   log(`Deleting existing legislators for ${STATE_CODE}...`);
-  await target.query(`DELETE FROM state_legislators WHERE jurisdiction = $1`, [STATE_CODE]);
+  await target.query(`DELETE FROM state_legislators WHERE state = $1`, [STATE_CODE]);
 
   log("Fetching legislators from OpenStates dump...");
   const { rows } = await source.query(
@@ -79,13 +76,19 @@ async function ingestLegislators(source: Client, target: Client) {
 
   let inserted = 0;
   for (const row of rows) {
-    const role = row.current_role ?? {};
-    const chamber = role.org_classification === "upper" ? "Senate" : role.org_classification === "lower" ? "House of Delegates" : null;
-    const district = role.district ? String(role.district) : null;
+    const normalized = normalizeOpenStatesStateLegislator({
+      id: row.id,
+      name: row.name,
+      primary_party: row.primary_party,
+      image: row.image,
+      email: row.email,
+      current_role: row.current_role,
+      jurisdiction: { id: JURISDICTION_ID },
+    });
 
     await target.query(
-      `INSERT INTO state_legislators (id, name, party, chamber, district, jurisdiction, photo_url, email, state, raw, fetched_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      `INSERT INTO state_legislators (id, name, party, chamber, district, photo_url, email, state, raw, fetched_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name,
          party = EXCLUDED.party,
@@ -97,14 +100,13 @@ async function ingestLegislators(source: Client, target: Client) {
          fetched_at = NOW()`,
       [
         row.id,
-        row.name,
-        row.primary_party || null,
-        chamber,
-        district,
-        STATE_CODE,
-        row.image || null,
-        row.email || null,
-        STATE_CODE.toUpperCase(),
+        normalized.name,
+        normalized.party,
+        normalized.chamber,
+        normalized.district,
+        normalized.photoUrl,
+        normalized.email,
+        normalized.state,
         JSON.stringify({ ...row.extras, current_role: row.current_role }),
       ],
     );
@@ -115,7 +117,7 @@ async function ingestLegislators(source: Client, target: Client) {
 
 async function ingestBills(source: Client, target: Client) {
   log(`Deleting existing bills for ${STATE_CODE}...`);
-  await target.query(`DELETE FROM state_bills WHERE jurisdiction = $1`, [STATE_CODE]);
+  await target.query(`DELETE FROM state_bills WHERE state = $1`, [STATE_CODE]);
 
   log("Fetching bills from OpenStates dump...");
   const { rows } = await source.query(
@@ -204,7 +206,7 @@ async function ingestBills(source: Client, target: Client) {
         id, identifier, title, session, chamber, status,
         introduced_date, stage_introduced, stage_committee, stage_floor_vote,
         stage_passed, stage_signed_enacted, stage_dead,
-        subjects, jurisdiction, raw, fetched_at, search_vector
+        subjects, state, raw, fetched_at, search_vector
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(),
                 to_tsvector('english', COALESCE($3, '') || ' ' || COALESCE($2, '')))
       ON CONFLICT (id) DO UPDATE SET
@@ -251,7 +253,7 @@ async function ingestBills(source: Client, target: Client) {
 
 async function ingestVotes(source: Client, target: Client) {
   log(`Deleting existing vote records for ${STATE_CODE}...`);
-  await target.query(`DELETE FROM state_vote_records WHERE jurisdiction = $1`, [STATE_CODE]);
+  await target.query(`DELETE FROM state_vote_records WHERE state = $1`, [STATE_CODE]);
 
   log("Fetching vote records from OpenStates dump...");
   // Get total count for progress logging
@@ -386,10 +388,10 @@ async function ingestVotes(source: Client, target: Client) {
     if (batchValues.length > 0) {
       await target.query(
         `INSERT INTO state_vote_records (
-          jurisdiction, legislator_id, legislator_name, vote_event_id, bill_id,
+          state, legislator_id, legislator_name, vote_event_id, bill_id,
           bill_identifier, bill_title, chamber, motion_text, result, position, voted_at, raw, fetched_at
         ) VALUES ${placeholders.join(", ")}
-        ON CONFLICT (jurisdiction, legislator_id, vote_event_id) DO UPDATE SET
+        ON CONFLICT (state, legislator_id, vote_event_id) DO UPDATE SET
           position = EXCLUDED.position,
           legislator_name = EXCLUDED.legislator_name,
           bill_identifier = EXCLUDED.bill_identifier,
@@ -406,13 +408,13 @@ async function ingestVotes(source: Client, target: Client) {
     }
     offset += rows.length;
 
-    const countRes = await target.query(`SELECT COUNT(*) as cnt FROM state_vote_records WHERE jurisdiction = $1`, [STATE_CODE]);
+    const countRes = await target.query(`SELECT COUNT(*) as cnt FROM state_vote_records WHERE state = $1`, [STATE_CODE]);
     const tableCount = Number(countRes.rows[0]?.cnt ?? 0);
     log(`  batch ${batchCount}: offset=${offset.toLocaleString()} table_rows=${tableCount.toLocaleString()} inserted_counter=${inserted.toLocaleString()} skipped=${skipped.toLocaleString()}`);
   }
 
   await source.query(`DROP TABLE IF EXISTS ${tmpTable}`);
-  const finalRes = await target.query(`SELECT COUNT(*) as cnt FROM state_vote_records WHERE jurisdiction = $1`, [STATE_CODE]);
+  const finalRes = await target.query(`SELECT COUNT(*) as cnt FROM state_vote_records WHERE state = $1`, [STATE_CODE]);
   const finalCount = Number(finalRes.rows[0]?.cnt ?? 0);
   log(`Upserted ${inserted.toLocaleString()} vote records (${skipped.toLocaleString()} skipped). Table now has ${finalCount.toLocaleString()} rows.`);
 }

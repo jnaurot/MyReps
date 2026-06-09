@@ -213,7 +213,7 @@ async function backfillState(
          stage_signed_enacted = bf.stage_signed_enacted,
          stage_dead = bf.stage_dead
      FROM ${tmpTable} bf
-     WHERE b.id = bf.bill_id AND b.jurisdiction = $1`,
+     WHERE b.id = bf.bill_id AND b.state = $1`,
     [stateCode],
   );
   const updated = Number(updateRes?.rowCount ?? 0);

@@ -143,7 +143,7 @@ export function GlobalSearchBar({
                   </Avatar>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.jurisdiction}</p>
+                    <p className="text-xs text-muted-foreground">{m.chamber}{m.district ? `, District ${m.district}` : ""} · {m.state}</p>
                   </div>
                 </Link>
               ))}

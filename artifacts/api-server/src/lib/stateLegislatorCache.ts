@@ -1,5 +1,10 @@
 import { eq, and, inArray } from "drizzle-orm";
-import { db, stateLegislatorsTable, providerStatusTable } from "@workspace/db";
+import {
+  db,
+  normalizeOpenStatesStateLegislator,
+  stateLegislatorsTable,
+  providerStatusTable,
+} from "@workspace/db";
 import { fetchWithTimeout as fetch, withRetry } from "./http";
 import { ProviderRateLimitError, isProviderRateLimitError } from "./respond";
 
@@ -138,26 +143,9 @@ export async function openStatesFetch(
 }
 
 function mapOpenStatesPerson(person: any) {
-  const role = person.current_role ?? {};
-  const jurisdictionId = person.jurisdiction?.id ?? "";
-  const jurisdictionMatch = jurisdictionId.match(/state:([a-z]{2})/);
-  const jurisdiction = jurisdictionMatch
-    ? jurisdictionMatch[1]
-    : (person.jurisdiction?.name ?? "").toLowerCase().replace(/\s+/g, "");
-
+  const normalized = normalizeOpenStatesStateLegislator(person);
   return {
-    id: person.id,
-    name: person.name ?? "",
-    party: person.party ?? null,
-    chamber:
-      role.org_classification === "upper" ? "Senate" : "House of Delegates",
-    district: role.district ? String(role.district) : null,
-    jurisdiction,
-    photoUrl: person.image ?? null,
-    email: person.email ?? null,
-    phone: person.links?.[0]?.url ?? null,
-    openstatesUrl: person.openstates_url ?? null,
-    state: person.jurisdiction?.name ?? null,
+    ...normalized,
     raw: person,
   };
 }
@@ -173,12 +161,11 @@ function mapDbStateLegislator(row: typeof stateLegislatorsTable.$inferSelect) {
     party: row.party ?? raw.primary_party ?? null,
     chamber: row.chamber ?? (role.org_classification === "upper" ? "Senate" : "House of Delegates"),
     district: row.district ?? (role.district ? String(role.district) : null),
-    jurisdiction: row.jurisdiction ?? "",
     photoUrl: row.photoUrl ?? raw.image ?? null,
     email: row.email ?? raw.email ?? null,
     phone: row.phone ?? raw.links?.[0]?.url ?? null,
     openstatesUrl: row.openstatesUrl ?? raw.openstates_url ?? null,
-    state: row.state ?? raw.jurisdiction?.name ?? null,
+    state: row.state,
     raw: row.raw,
   };
 }
@@ -380,7 +367,6 @@ async function fetchStateLegislatorFromOpenStates(id: string) {
       party: mapped.party,
       chamber: mapped.chamber,
       district: mapped.district,
-      jurisdiction: mapped.jurisdiction,
       photoUrl: mapped.photoUrl,
       email: mapped.email,
       phone: mapped.phone,
@@ -396,7 +382,6 @@ async function fetchStateLegislatorFromOpenStates(id: string) {
         party: mapped.party,
         chamber: mapped.chamber,
         district: mapped.district,
-        jurisdiction: mapped.jurisdiction,
         photoUrl: mapped.photoUrl,
         email: mapped.email,
         phone: mapped.phone,
@@ -415,14 +400,14 @@ async function fetchStateLegislatorFromOpenStates(id: string) {
  * Returns the mapped legislators.
  */
 export async function fetchAndCacheDistrictLegislators(
-  jurisdiction: string,
+  state: string,
   senateDistrict: string | null,
   houseDistrict: string | null,
   logger?: any,
 ): Promise<Array<ReturnType<typeof mapOpenStatesPerson>>> {
   if (await isRateLimited()) {
     logger?.warn(
-      { jurisdiction },
+      { state },
       "Skipping OpenStates district fetch due to active rate limit",
     );
     return [];
@@ -438,7 +423,7 @@ export async function fetchAndCacheDistrictLegislators(
   const fetchOne = async (district: string, orgClass: "upper" | "lower") => {
     try {
       const data = await openStatesFetch("/people", {
-        jurisdiction: jurisdiction.toLowerCase(),
+        jurisdiction: state.toLowerCase(),
         district,
         org_classification: orgClass,
         per_page: 10,
@@ -455,7 +440,6 @@ export async function fetchAndCacheDistrictLegislators(
             party: mapped.party,
             chamber: mapped.chamber,
             district: mapped.district,
-            jurisdiction: mapped.jurisdiction,
             photoUrl: mapped.photoUrl,
             email: mapped.email,
             phone: mapped.phone,
@@ -471,7 +455,6 @@ export async function fetchAndCacheDistrictLegislators(
               party: mapped.party,
               chamber: mapped.chamber,
               district: mapped.district,
-              jurisdiction: mapped.jurisdiction,
               photoUrl: mapped.photoUrl,
               email: mapped.email,
               phone: mapped.phone,
@@ -484,7 +467,7 @@ export async function fetchAndCacheDistrictLegislators(
       }
     } catch (err) {
       logger?.error(
-        { err, jurisdiction, district, orgClass },
+        { err, state, district, orgClass },
         "Failed to fetch district legislators",
       );
     }
@@ -503,7 +486,7 @@ export async function fetchAndCacheDistrictLegislators(
  * Returns legislators and a single cache metadata object summarizing freshness.
  */
 export async function getDistrictLegislators(
-  jurisdiction: string,
+  state: string,
   senateDistrict: string | null,
   houseDistrict: string | null,
   logger?: any,
@@ -523,7 +506,7 @@ export async function getDistrictLegislators(
       .from(stateLegislatorsTable)
       .where(
         and(
-          eq(stateLegislatorsTable.jurisdiction, jurisdiction.toLowerCase()),
+          eq(stateLegislatorsTable.state, state),
           inArray(stateLegislatorsTable.district, districts),
         ),
       );
@@ -539,7 +522,7 @@ export async function getDistrictLegislators(
       cachedRows[0],
     );
     logger?.info(
-      { jurisdiction, count: cachedRows.length, source: "db", stale: anyStale },
+      { state, count: cachedRows.length, source: "db", stale: anyStale },
       "Serving district legislators from cache",
     );
     return {
@@ -554,11 +537,11 @@ export async function getDistrictLegislators(
 
   // Cache miss → fetch from OpenStates
   logger?.info(
-    { jurisdiction, senateDistrict, houseDistrict, source: "openstates" },
+    { state, senateDistrict, houseDistrict, source: "openstates" },
     "Cache miss; fetching district legislators from OpenStates",
   );
   const fetched = await fetchAndCacheDistrictLegislators(
-    jurisdiction,
+    state,
     senateDistrict,
     houseDistrict,
     logger,
@@ -572,4 +555,3 @@ export async function getDistrictLegislators(
     },
   };
 }
-

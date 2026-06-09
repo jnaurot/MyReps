@@ -667,7 +667,6 @@ export const GetStateMemberResponse = zod.object({
     photoUrl: zod.string().optional(),
     openstatesUrl: zod.string().optional(),
     state: zod.string().optional(),
-    jurisdiction: zod.string().optional(),
   }),
   cache: zod.object({
     source: zod.enum(["db", "openstates"]),
@@ -685,7 +684,7 @@ export const searchStateMembersQueryLimitDefault = 20;
 
 export const SearchStateMembersQueryParams = zod.object({
   q: zod.coerce.string(),
-  jurisdiction: zod.coerce.string().optional(),
+  state: zod.coerce.string().optional(),
   offset: zod.coerce.number().default(searchStateMembersQueryOffsetDefault),
   limit: zod.coerce.number().default(searchStateMembersQueryLimitDefault),
 });
@@ -703,7 +702,6 @@ export const SearchStateMembersResponse = zod.object({
       photoUrl: zod.string().optional(),
       openstatesUrl: zod.string().optional(),
       state: zod.string().optional(),
-      jurisdiction: zod.string().optional(),
     }),
   ),
   totalCount: zod.number().optional(),
@@ -729,7 +727,6 @@ export const RefreshStateMemberResponse = zod.object({
     photoUrl: zod.string().optional(),
     openstatesUrl: zod.string().optional(),
     state: zod.string().optional(),
-    jurisdiction: zod.string().optional(),
   }),
   cache: zod.object({
     source: zod.enum(["db", "openstates"]),
@@ -787,13 +784,13 @@ export const GetStateMemberBillsParams = zod.object({
 });
 
 export const getStateMemberBillsQueryTypeDefault = `sponsored`;
-export const getStateMemberBillsQueryJurisdictionDefault = `md`;
+export const getStateMemberBillsQueryStateDefault = `MD`;
 export const getStateMemberBillsQueryOffsetDefault = 0;
 export const getStateMemberBillsQueryLimitDefault = 20;
 
 export const GetStateMemberBillsQueryParams = zod.object({
   type: zod.enum(["sponsored", "cosponsored"]).default(getStateMemberBillsQueryTypeDefault),
-  jurisdiction: zod.coerce.string().default(getStateMemberBillsQueryJurisdictionDefault),
+  state: zod.coerce.string().default(getStateMemberBillsQueryStateDefault),
   offset: zod.coerce.number().default(getStateMemberBillsQueryOffsetDefault),
   limit: zod.coerce.number().default(getStateMemberBillsQueryLimitDefault),
   q: zod.coerce.string().optional().describe("Search query to filter bills by title or identifier"),
@@ -839,13 +836,13 @@ export const GetStateMemberVotesParams = zod.object({
   memberId: zod.coerce.string(),
 });
 
-export const getStateMemberVotesQueryJurisdictionDefault = `md`;
+export const getStateMemberVotesQueryStateDefault = `MD`;
 export const getStateMemberVotesQueryOffsetDefault = 0;
 export const getStateMemberVotesQueryLimitDefault = 20;
 export const getStateMemberVotesQueryFilterDefault = `all`;
 
 export const GetStateMemberVotesQueryParams = zod.object({
-  jurisdiction: zod.coerce.string().default(getStateMemberVotesQueryJurisdictionDefault),
+  state: zod.coerce.string().default(getStateMemberVotesQueryStateDefault),
   offset: zod.coerce.number().default(getStateMemberVotesQueryOffsetDefault),
   limit: zod.coerce.number().default(getStateMemberVotesQueryLimitDefault),
   filter: zod
@@ -874,13 +871,13 @@ export const GetStateMemberVotesResponse = zod.object({
  */
 export const getStateBillsQueryOffsetDefault = 0;
 export const getStateBillsQueryLimitDefault = 20;
-export const getStateBillsQueryJurisdictionDefault = `md`;
+export const getStateBillsQueryStateDefault = `MD`;
 
 export const GetStateBillsQueryParams = zod.object({
   chamber: zod.enum(["upper", "lower"]).optional(),
   offset: zod.coerce.number().default(getStateBillsQueryOffsetDefault),
   limit: zod.coerce.number().default(getStateBillsQueryLimitDefault),
-  jurisdiction: zod.coerce.string().default(getStateBillsQueryJurisdictionDefault),
+  state: zod.coerce.string().default(getStateBillsQueryStateDefault),
   stages: zod.coerce
     .string()
     .optional()
@@ -919,13 +916,13 @@ export const GetStateBillsResponse = zod.object({
 /**
  * @summary Search state bills by full-text query
  */
-export const searchStateBillsQueryJurisdictionDefault = `md`;
+export const searchStateBillsQueryStateDefault = `MD`;
 export const searchStateBillsQueryOffsetDefault = 0;
 export const searchStateBillsQueryLimitDefault = 20;
 
 export const SearchStateBillsQueryParams = zod.object({
   q: zod.coerce.string(),
-  jurisdiction: zod.coerce.string().default(searchStateBillsQueryJurisdictionDefault),
+  state: zod.coerce.string().default(searchStateBillsQueryStateDefault),
   chamber: zod.enum(["upper", "lower"]).optional(),
   stages: zod.coerce
     .string()

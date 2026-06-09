@@ -6,6 +6,7 @@
  *   pnpm --filter @workspace/scripts run ingest:openstates:all
  */
 import { Client } from "pg";
+import { normalizeOpenStatesStateLegislator, requireUsStateCode } from "@workspace/db";
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/civic_hub";
 const OPENSTATES_DB_URL = process.env.OPENSTATES_DB_URL ?? "postgresql://postgres:postgres@localhost:5432/openstates";
@@ -52,7 +53,7 @@ async function ingestState(
   source: Client,
   target: Client,
 ) {
-  const stateCode = jurisdictionId.match(/state:([a-z]{2})/i)?.[1]?.toLowerCase() ?? "";
+  const stateCode = requireUsStateCode(jurisdictionId, `jurisdiction ${jurisdictionId}`);
   log(`=== Ingesting ${stateName} (${stateCode}) ===`);
 
   // Legislators
@@ -63,21 +64,27 @@ async function ingestState(
     [jurisdictionId],
   );
 
-  await target.query(`DELETE FROM state_legislators WHERE jurisdiction = $1`, [stateCode]);
+  await target.query(`DELETE FROM state_legislators WHERE state = $1`, [stateCode]);
   for (const row of legislatorRows) {
-    const role = row.current_role ?? {};
-    const chamber = role.org_classification === "upper" ? "Senate" : role.org_classification === "lower" ? "House of Delegates" : null;
-    const district = role.district ? String(role.district) : null;
+    const normalized = normalizeOpenStatesStateLegislator({
+      id: row.id,
+      name: row.name,
+      primary_party: row.primary_party,
+      image: row.image,
+      email: row.email,
+      current_role: row.current_role,
+      jurisdiction: { id: jurisdictionId },
+    });
     await target.query(
-      `INSERT INTO state_legislators (id, name, party, chamber, district, jurisdiction, photo_url, email, state, raw, fetched_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+      `INSERT INTO state_legislators (id, name, party, chamber, district, photo_url, email, state, raw, fetched_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
        ON CONFLICT (id) DO UPDATE SET
          name = EXCLUDED.name, party = EXCLUDED.party, chamber = EXCLUDED.chamber,
          district = EXCLUDED.district, photo_url = EXCLUDED.photo_url, email = EXCLUDED.email,
          raw = EXCLUDED.raw, fetched_at = NOW()`,
       [
-        row.id, row.name, row.primary_party || null, chamber, district,
-        stateCode, row.image || null, row.email || null, stateCode.toUpperCase(),
+        row.id, normalized.name, normalized.party, normalized.chamber, normalized.district,
+        normalized.photoUrl, normalized.email, normalized.state,
         JSON.stringify({ ...row.extras, current_role: row.current_role }),
       ],
     );
@@ -127,7 +134,7 @@ async function ingestState(
     sponsorsByBill.set(s.bill_id, list);
   }
 
-  await target.query(`DELETE FROM state_bills WHERE jurisdiction = $1`, [stateCode]);
+  await target.query(`DELETE FROM state_bills WHERE state = $1`, [stateCode]);
   for (const row of billRows) {
     const chamber = row.org_classification === "upper" ? "Senate" : row.org_classification === "lower" ? "House of Delegates" : null;
     const subjects = Array.isArray(row.subject) ? row.subject : row.subject ? [row.subject] : [];
@@ -150,7 +157,7 @@ async function ingestState(
     await target.query(
       `INSERT INTO state_bills (
         id, identifier, title, session, chamber, status, introduced_date,
-        subjects, jurisdiction, raw, fetched_at, search_vector,
+        subjects, state, raw, fetched_at, search_vector,
         stage_introduced, stage_committee, stage_floor_vote, stage_passed, stage_signed_enacted, stage_dead
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), to_tsvector('english', COALESCE($3, '') || ' ' || COALESCE($2, '')),
                 $11, $12, $13, $14, $15, $16)
@@ -203,7 +210,7 @@ async function ingestState(
   const nameToId = new Map<string, string>();
   for (const r of nameMapRows) if (!nameToId.has(r.voter_name)) nameToId.set(r.voter_name, r.voter_id);
 
-  await target.query(`DELETE FROM state_vote_records WHERE jurisdiction = $1`, [stateCode]);
+  await target.query(`DELETE FROM state_vote_records WHERE state = $1`, [stateCode]);
 
   // Build a temp table with ordered IDs to avoid slow OFFSET queries on large JOINs
   const tmpTable = `tmp_pvs_${stateCode.replace(/[^a-z0-9]/g, "_")}`;
@@ -279,9 +286,9 @@ async function ingestState(
 
     if (batchValues.length > 0) {
       await target.query(
-        `INSERT INTO state_vote_records (jurisdiction, legislator_id, legislator_name, vote_event_id, bill_id, bill_identifier, bill_title, chamber, motion_text, result, position, voted_at, raw, fetched_at)
+        `INSERT INTO state_vote_records (state, legislator_id, legislator_name, vote_event_id, bill_id, bill_identifier, bill_title, chamber, motion_text, result, position, voted_at, raw, fetched_at)
          VALUES ${placeholders.join(",")}
-         ON CONFLICT (jurisdiction, legislator_id, vote_event_id) DO UPDATE SET
+         ON CONFLICT (state, legislator_id, vote_event_id) DO UPDATE SET
            position = EXCLUDED.position, legislator_name = EXCLUDED.legislator_name,
            bill_identifier = EXCLUDED.bill_identifier, bill_title = EXCLUDED.bill_title,
            chamber = EXCLUDED.chamber, motion_text = EXCLUDED.motion_text,

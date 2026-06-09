@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@workspace/db": "workspace:*",
     "pg": "^8.20.0"
   },
   "scripts": {

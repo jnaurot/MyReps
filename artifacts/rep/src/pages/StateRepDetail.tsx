@@ -56,7 +56,7 @@ import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
 import { billFromParam, stateBillPath } from "@/lib/routes";
 import { buildVoteSearch, parseVoteSearchState, type VoteFilter } from "@/lib/voteSearchParams";
 
-function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; jurisdiction?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
+function StateBillsList({ memberId, state, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; state?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
   const isMobile = useIsMobile();
   const pageSearch = useSearch();
   const initialParams = new URLSearchParams(pageSearch);
@@ -92,7 +92,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
 
   const queryParams = {
     type,
-    jurisdiction,
+    state,
     offset,
     limit,
     q: debouncedSearchQuery || undefined,
@@ -325,7 +325,7 @@ function StateBillsList({ memberId, jurisdiction, memberName, onRefresh, refresh
   );
 }
 
-function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: { memberId: string; jurisdiction?: string; memberName?: string; memberChamber?: string }) {
+function StateVotesList({ memberId, state, memberName, memberChamber }: { memberId: string; state?: string; memberName?: string; memberChamber?: string }) {
   const isMobile = useIsMobile();
   const pageSearch = useSearch();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -350,7 +350,7 @@ function StateVotesList({ memberId, jurisdiction, memberName, memberChamber }: {
   const prevFilterKeyRef = useRef<string | null>(null);
   const limit = 20;
 
-  const queryParams = { jurisdiction, offset, limit, filter, q: debouncedSearchQuery || undefined };
+  const queryParams = { state, offset, limit, filter, q: debouncedSearchQuery || undefined };
   const { data, isLoading, isPlaceholderData } = useGetStateMemberVotes(memberId, queryParams, {
     query: {
       enabled: !!memberId,
@@ -915,8 +915,8 @@ export function StateRepDetail() {
                 </Button>
               </div>
 
-              <TabsContent value="bills" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateBillsList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} onRefresh={handleRefresh} refreshPending={refreshMutation.isPending || refreshBillsMutation.isPending} billType={billType} onBillTypeChange={setBillType} /></TabsContent>
-              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} jurisdiction={member.jurisdiction} memberName={member.name} memberChamber={member.chamber} /></TabsContent>
+              <TabsContent value="bills" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateBillsList memberId={apiMemberId} state={member.state} memberName={member.name} onRefresh={handleRefresh} refreshPending={refreshMutation.isPending || refreshBillsMutation.isPending} billType={billType} onBillTypeChange={setBillType} /></TabsContent>
+              <TabsContent value="votes" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateVotesList memberId={apiMemberId} state={member.state} memberName={member.name} memberChamber={member.chamber} /></TabsContent>
               <TabsContent value="committees" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><CommitteesFromBills /></TabsContent>
               <TabsContent value="finance" className="flex-1 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"><StateFinanceTab name={member.name ?? ""} state={member.state} /></TabsContent>
             </Tabs>

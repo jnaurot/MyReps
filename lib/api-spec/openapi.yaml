@@ -457,7 +457,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: jurisdiction
+        - name: state
           in: query
           schema:
             type: string
@@ -545,7 +545,7 @@ paths:
             type: string
             enum: [sponsored, cosponsored]
             default: sponsored
-        - name: jurisdiction
+        - name: state
           in: query
           schema:
             type: string
@@ -589,7 +589,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: jurisdiction
+        - name: state
           in: query
           schema:
             type: string
@@ -644,7 +644,7 @@ paths:
           schema:
             type: integer
             default: 20
-        - name: jurisdiction
+        - name: state
           in: query
           schema:
             type: string
@@ -673,7 +673,7 @@ paths:
           required: true
           schema:
             type: string
-        - name: jurisdiction
+        - name: state
           in: query
           schema:
             type: string
@@ -1320,7 +1320,7 @@ components:
           type: string
         state:
           type: string
-        jurisdiction:
+        state:
           type: string
       required: [id, name]
 

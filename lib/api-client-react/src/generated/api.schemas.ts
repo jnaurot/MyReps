@@ -359,7 +359,6 @@ export interface StateMemberDetail {
   photoUrl?: string;
   openstatesUrl?: string;
   state?: string;
-  jurisdiction?: string;
 }
 
 export interface StateMemberDetailResponse {
@@ -634,7 +633,7 @@ export type SearchFederalBillsParams = {
 
 export type SearchStateMembersParams = {
   q: string;
-  jurisdiction?: string;
+  state?: string;
   offset?: number;
   limit?: number;
 };
@@ -653,7 +652,7 @@ export type RefreshStateMemberBillsBody = {
 
 export type GetStateMemberBillsParams = {
   type?: GetStateMemberBillsType;
-  jurisdiction?: string;
+  state?: string;
   offset?: number;
   limit?: number;
   /**
@@ -675,7 +674,7 @@ export const GetStateMemberBillsType = {
 } as const;
 
 export type GetStateMemberVotesParams = {
-  jurisdiction?: string;
+  state?: string;
   offset?: number;
   limit?: number;
   filter?: GetStateMemberVotesFilter;
@@ -700,7 +699,7 @@ export type GetStateBillsParams = {
   chamber?: GetStateBillsChamber;
   offset?: number;
   limit?: number;
-  jurisdiction?: string;
+  state?: string;
   /**
    * Comma-separated normalized stage filters: introduced, committee, floor_vote, passed, signed_enacted, dead
    */
@@ -716,7 +715,7 @@ export const GetStateBillsChamber = {
 
 export type SearchStateBillsParams = {
   q: string;
-  jurisdiction?: string;
+  state?: string;
   chamber?: SearchStateBillsChamber;
   /**
    * Comma-separated normalized stage filters: introduced, committee, floor_vote, passed, signed_enacted, dead

@@ -1,10 +1,10 @@
-import { pgTable, serial, text, timestamp, jsonb, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, uniqueIndex, index, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 export const stateVoteRecordsTable = pgTable("state_vote_records", {
   id: serial("id").primaryKey(),
 
-  jurisdiction: text("jurisdiction").notNull(),
+  state: varchar("state", { length: 2 }).notNull(),
   legislatorId: text("legislator_id").notNull(),
   legislatorName: text("legislator_name"),
 
@@ -25,11 +25,11 @@ export const stateVoteRecordsTable = pgTable("state_vote_records", {
 
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex("state_vote_records_unique_idx").on(table.jurisdiction, table.legislatorId, table.voteEventId),
-  index("idx_state_vote_records_member_date").on(table.jurisdiction, table.legislatorId, table.votedAt),
-  index("idx_state_vote_records_member_position_date").on(table.jurisdiction, table.legislatorId, table.position, table.votedAt),
-  index("idx_state_vote_records_bill").on(table.jurisdiction, table.billId),
-  index("idx_state_vote_records_vote_event").on(table.jurisdiction, table.voteEventId),
+  uniqueIndex("state_vote_records_unique_idx").on(table.state, table.legislatorId, table.voteEventId),
+  index("idx_state_vote_records_member_date").on(table.state, table.legislatorId, table.votedAt),
+  index("idx_state_vote_records_member_position_date").on(table.state, table.legislatorId, table.position, table.votedAt),
+  index("idx_state_vote_records_bill").on(table.state, table.billId),
+  index("idx_state_vote_records_vote_event").on(table.state, table.voteEventId),
 ]);
 
 export const insertStateVoteRecordSchema = createInsertSchema(stateVoteRecordsTable).omit({ id: true, fetchedAt: true });

@@ -3,6 +3,7 @@ import { eq, and, or, asc, desc, sql, inArray } from "drizzle-orm";
 import {
   db,
   normalizeStateVotePosition,
+  requireUsStateCode,
   stateVoteRecordsTable,
   stateBillsTable,
   stateLegislatorsTable,
@@ -158,11 +159,11 @@ function sortBillsNewestFirst<T extends ReturnType<typeof mapStateBill>>(bills: 
 async function upsertStateBill({
   bill,
   sourceBill,
-  jurisdiction,
+  state,
 }: {
   bill: ReturnType<typeof mapStateBill>;
   sourceBill: any;
-  jurisdiction: string;
+  state: string;
 }) {
   const subjectsText = Array.isArray(bill.subjects)
     ? bill.subjects.join(" ")
@@ -191,7 +192,7 @@ async function upsertStateBill({
       summary: null,
       subjects: bill.subjects ?? [],
       url: bill.url ?? null,
-      jurisdiction,
+      state,
       raw: sourceBill,
       searchVector: sql`setweight(to_tsvector('english', coalesce(${bill.title}, '')), 'A') || setweight(to_tsvector('english', coalesce(${bill.identifier ?? ""}, '')), 'B') || setweight(to_tsvector('english', coalesce(${subjectsText}, '')), 'C')`,
     })
@@ -316,7 +317,7 @@ function mapDbStateBillDetail(
     return {
       name: s.name ?? "",
       party: legislator?.party ?? s.party ?? undefined,
-      state: raw.jurisdiction?.name ?? row.jurisdiction ?? undefined,
+      state: row.state ?? undefined,
       openstatesId: personId,
     };
   };
@@ -365,12 +366,12 @@ router.get("/state/members/search", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid query parameters" });
   }
-  const { q, jurisdiction, limit: rawLimit, offset } = parsed.data;
+  const { q, state, limit: rawLimit, offset } = parsed.data;
   const limit = Math.min(rawLimit, 100);
 
   try {
     req.log.info(
-      { q, jurisdiction, source: "db" },
+      { q, state, source: "db" },
       "Searching state legislators from DB cache",
     );
     const searchPattern = `%${q}%`;
@@ -381,8 +382,8 @@ router.get("/state/members/search", async (req, res) => {
       ),
     ];
 
-    if (jurisdiction) {
-      conditions.push(eq(stateLegislatorsTable.jurisdiction, jurisdiction));
+    if (state) {
+      conditions.push(eq(stateLegislatorsTable.state, state));
     }
 
     const rows = await db
@@ -405,7 +406,6 @@ router.get("/state/members/search", async (req, res) => {
       party: r.party,
       chamber: r.chamber,
       district: r.district,
-      jurisdiction: r.jurisdiction,
       photoUrl: toBrowserPhotoUrl(r.photoUrl),
       state: r.state,
     }));
@@ -413,7 +413,7 @@ router.get("/state/members/search", async (req, res) => {
     req.log.info(
       {
         q,
-        jurisdiction,
+        state,
         offset,
         limit,
         totalCount,
@@ -495,7 +495,7 @@ router.post("/state/members/:memberId/bills/refresh", async (req, res) => {
     req.log.info({ memberId, type, source: "openstates" }, "Force refreshing state member bills");
 
     const data = await openStatesFetch("/bills", {
-      jurisdiction: req.body?.jurisdiction ?? "md",
+      jurisdiction: String(req.body?.state ?? "MD").toLowerCase(),
       per_page: 20,
       page: 1,
       sponsor: memberId,
@@ -508,13 +508,16 @@ router.post("/state/members/:memberId/bills/refresh", async (req, res) => {
     const bills = sortBillsNewestFirst(sourceBills.map(mapStateBill));
     const totalCount = Number(data.pagination?.total_items ?? 0);
 
-    const jurisdiction = req.body?.jurisdiction ?? "md";
+    const state = requireUsStateCode(
+      typeof req.body?.state === "string" ? req.body.state : "MD",
+      "state member bills refresh",
+    );
     for (const sourceBill of sourceBills) {
-      await upsertStateBill({ bill: mapStateBill(sourceBill), sourceBill, jurisdiction });
+      await upsertStateBill({ bill: mapStateBill(sourceBill), sourceBill, state });
     }
 
     stateMemberBillsCache.set(
-      [jurisdiction, memberId, sponsorClassification, 1, 20].join("|"),
+      [state, memberId, sponsorClassification, 1, 20].join("|"),
       { fetchedAt: Date.now(), bills, totalCount },
     );
 
@@ -536,7 +539,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
     return res.status(400).json({ error: "Invalid params" });
 
   try {
-    const { jurisdiction, offset, limit, q, type, stages } = queryParsed.data;
+    const { state, offset, limit, q, type, stages } = queryParsed.data;
     const sponsorClassification =
       type === "cosponsored" ? "cosponsor" : "primary";
     const selectedStages = parseStageQuery(stages);
@@ -562,7 +565,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
         ? sql`(${stateBillsTable.searchVector} @@ websearch_to_tsquery('english', ${q}) OR ${q} % ${stateBillsTable.title})`
         : undefined;
       const conditions = [
-        eq(stateBillsTable.jurisdiction, jurisdiction),
+        eq(stateBillsTable.state, state),
         sponsorCondition,
         ...(stageCondition ? [stageCondition] : []),
         ...(searchCondition ? [searchCondition] : []),
@@ -590,7 +593,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
       req.log.info(
         {
           memberId,
-          jurisdiction,
+          state,
           type,
           stages,
           offset,
@@ -626,7 +629,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
 
       const searchCondition = sql`(${stateBillsTable.searchVector} @@ websearch_to_tsquery('english', ${q}) OR ${q} % ${stateBillsTable.title})`;
       const dbConditions = [
-        eq(stateBillsTable.jurisdiction, jurisdiction),
+        eq(stateBillsTable.state, state),
         sponsorCondition,
         searchCondition,
       ];
@@ -635,14 +638,14 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
       const [memberCountRow] = await db
         .select({ count: sql<number>`count(*)` })
         .from(stateBillsTable)
-        .where(and(eq(stateBillsTable.jurisdiction, jurisdiction), sponsorCondition));
+        .where(and(eq(stateBillsTable.state, state), sponsorCondition));
 
       if (Number(memberCountRow?.count ?? 0) === 0) {
-        const seedCacheKey = [jurisdiction, memberId, sponsorClassification, 1, 20].join("|");
+        const seedCacheKey = [state, memberId, sponsorClassification, 1, 20].join("|");
         const seedCached = stateMemberBillsCache.get(seedCacheKey);
         if (!seedCached || Date.now() - seedCached.fetchedAt >= STATE_MEMBER_BILLS_CACHE_TTL_MS) {
           const data = await openStatesFetch("/bills", {
-            jurisdiction,
+            jurisdiction: state.toLowerCase(),
             per_page: 20,
             page: 1,
             sponsor: memberId,
@@ -652,7 +655,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
           });
           const sourceBills = data.results ?? [];
           for (const sourceBill of sourceBills) {
-            await upsertStateBill({ bill: mapStateBill(sourceBill), sourceBill, jurisdiction });
+            await upsertStateBill({ bill: mapStateBill(sourceBill), sourceBill, state });
           }
           stateMemberBillsCache.set(seedCacheKey, {
             fetchedAt: Date.now(),
@@ -673,7 +676,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
       const totalCount = Number(countResult[0]?.count ?? 0);
 
       req.log.info(
-        { memberId, jurisdiction, type, q, offset, limit, totalCount, source: "db" },
+        { memberId, state, type, q, offset, limit, totalCount, source: "db" },
         "Serving state member bill text search from DB",
       );
 
@@ -694,7 +697,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
         ? or(...primaryContainment)
         : or(...cosponsorContainment);
     const dbConditions = [
-      eq(stateBillsTable.jurisdiction, jurisdiction),
+      eq(stateBillsTable.state, state),
       sponsorCondition,
     ];
 
@@ -705,11 +708,11 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
 
     if (Number(memberCountRow?.count ?? 0) === 0) {
       req.log.info(
-        { memberId, jurisdiction, type, source: "openstates" },
+        { memberId, state, type, source: "openstates" },
         "Seeding state member bills from OpenStates (no cached bills)",
       );
       const data = await openStatesFetch("/bills", {
-        jurisdiction,
+        jurisdiction: state.toLowerCase(),
         per_page: 20,
         page: 1,
         sponsor: memberId,
@@ -722,7 +725,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
         await upsertStateBill({
           bill: mapStateBill(sourceBill),
           sourceBill,
-          jurisdiction,
+          state,
         });
       }
     }
@@ -742,7 +745,7 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
     req.log.info(
       {
         memberId,
-        jurisdiction,
+        state,
         type,
         offset,
         limit,
@@ -768,11 +771,11 @@ router.get("/state/members/:memberId/bills", async (req, res) => {
 });
 
 async function ingestStateVotesForMember({
-  jurisdiction,
+  state,
   memberId,
   maxPages = 10,
 }: {
-  jurisdiction: string;
+  state: string;
   memberId: string;
   maxPages?: number;
 }) {
@@ -781,7 +784,7 @@ async function ingestStateVotesForMember({
 
   for (let page = 1; page <= maxPages; page++) {
     const data = await openStatesFetch("/bills", {
-      jurisdiction,
+      jurisdiction: state.toLowerCase(),
       page,
       per_page: 20,
       sponsor_id: memberId,
@@ -813,7 +816,7 @@ async function ingestStateVotesForMember({
           await db
             .insert(stateVoteRecordsTable)
             .values({
-              jurisdiction,
+              state,
               legislatorId: memberId,
               legislatorName: personName ?? null,
               voteEventId: String(
@@ -839,7 +842,7 @@ async function ingestStateVotesForMember({
             })
             .onConflictDoUpdate({
               target: [
-                stateVoteRecordsTable.jurisdiction,
+                stateVoteRecordsTable.state,
                 stateVoteRecordsTable.legislatorId,
                 stateVoteRecordsTable.voteEventId,
               ],
@@ -870,7 +873,7 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
     return res.status(400).json({ error: "Invalid params" });
 
   try {
-    const { jurisdiction, offset, limit, filter, q } = queryParsed.data;
+    const { state, offset, limit, filter, q } = queryParsed.data;
 
     // Build text search condition
     const searchCondition = q
@@ -883,7 +886,7 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
       .from(stateVoteRecordsTable)
       .where(
         and(
-          eq(stateVoteRecordsTable.jurisdiction, jurisdiction),
+          eq(stateVoteRecordsTable.state, state),
           eq(stateVoteRecordsTable.legislatorId, memberId),
           ...(searchCondition ? [searchCondition] : []),
         ),
@@ -891,17 +894,17 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
 
     if (Number(existing[0]?.count ?? 0) === 0) {
       req.log.info(
-        { memberId, jurisdiction, source: "openstates" },
+        { memberId, state, source: "openstates" },
         "No state vote records in DB; triggering ingestion",
       );
       const { inserted, scannedBills } = await ingestStateVotesForMember({
-        jurisdiction,
+        state,
         memberId,
       });
       req.log.info(
         {
           memberId,
-          jurisdiction,
+          state,
           inserted,
           scannedBills,
           source: "openstates",
@@ -912,7 +915,7 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
       req.log.info(
         {
           memberId,
-          jurisdiction,
+          state,
           count: Number(existing[0]?.count ?? 0),
           source: "db",
         },
@@ -922,7 +925,7 @@ router.get("/state/members/:memberId/votes", async (req, res) => {
 
     // Build filter conditions
     const baseConditions: any[] = [
-      eq(stateVoteRecordsTable.jurisdiction, jurisdiction),
+      eq(stateVoteRecordsTable.state, state),
       eq(stateVoteRecordsTable.legislatorId, memberId),
     ];
 
@@ -984,13 +987,13 @@ router.get("/state/bills", async (req, res) => {
   const parsed = GetStateBillsQueryParams.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Invalid params" });
 
-  const { chamber, offset, limit, jurisdiction, stages } = parsed.data;
+  const { chamber, offset, limit, state, stages } = parsed.data;
   const selectedStages = parseStageQuery(stages);
 
   try {
     const stageCondition = buildStateBillsStageCondition(selectedStages);
     const dbConditions = [
-      eq(stateBillsTable.jurisdiction, jurisdiction),
+      eq(stateBillsTable.state, state),
       ...(chamber ? [eq(stateBillsTable.chamber, chamber)] : []),
       ...(stageCondition ? [stageCondition] : []),
     ];
@@ -1009,7 +1012,7 @@ router.get("/state/bills", async (req, res) => {
         .limit(limit)
         .offset(offset);
       req.log.info(
-        { jurisdiction, chamber, stages, offset, limit, totalCount: dbTotalCount, source: "db" },
+        { state, chamber, stages, offset, limit, totalCount: dbTotalCount, source: "db" },
         "Serving state bills from DB cache",
       );
       return res.json({
@@ -1020,7 +1023,7 @@ router.get("/state/bills", async (req, res) => {
     }
 
     const params: Record<string, string | number> = {
-      jurisdiction,
+      jurisdiction: state.toLowerCase(),
       per_page: limit,
       page: Math.floor(offset / limit) + 1,
     };
@@ -1028,7 +1031,7 @@ router.get("/state/bills", async (req, res) => {
 
     req.log.info(
       {
-        jurisdiction,
+        state,
         page: Math.floor(offset / limit) + 1,
         source: "openstates",
       },
@@ -1051,7 +1054,7 @@ router.get("/state/bills", async (req, res) => {
     // Upsert into cache for search
     for (const [idx, bill] of bills.entries()) {
       const sourceBill = (data.results ?? [])[idx] ?? null;
-      await upsertStateBill({ bill, sourceBill, jurisdiction });
+      await upsertStateBill({ bill, sourceBill, state });
     }
 
     return res.json({
@@ -1074,7 +1077,7 @@ router.get("/state/bills/search", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid query parameters" });
   }
-  const { q, jurisdiction, chamber, stages, limit: rawLimit, offset } = parsed.data;
+  const { q, state, chamber, stages, limit: rawLimit, offset } = parsed.data;
   if (!q.trim()) {
     return res.status(400).json({ error: "q must not be empty" });
   }
@@ -1084,8 +1087,8 @@ router.get("/state/bills/search", async (req, res) => {
   try {
     const searchQuery = sql`websearch_to_tsquery('english', ${q})`;
     const conditions = [sql`(${stateBillsTable.searchVector} @@ ${searchQuery} OR ${q} % ${stateBillsTable.title})`];
-    if (jurisdiction)
-      conditions.push(eq(stateBillsTable.jurisdiction, jurisdiction));
+    if (state)
+      conditions.push(eq(stateBillsTable.state, state));
     if (chamber)
       conditions.push(eq(stateBillsTable.chamber, chamber));
     const stageCondition = buildStateBillsStageCondition(selectedStages);
@@ -1104,7 +1107,7 @@ router.get("/state/bills/search", async (req, res) => {
 
     if (dbCount > 0 || offset > 0) {
       req.log.info(
-        { q, jurisdiction, chamber, stages, totalCount: dbCount, source: "db" },
+        { q, state, chamber, stages, totalCount: dbCount, source: "db" },
         "Serving state bill search from DB cache",
       );
       return res.json({ bills: rows.map(mapDbStateBillRow), totalCount: dbCount, offset });
@@ -1112,7 +1115,7 @@ router.get("/state/bills/search", async (req, res) => {
 
     // DB cache miss — fall through to OpenStates full-text search
     req.log.info(
-      { q, jurisdiction, chamber, source: "openstates" },
+      { q, state, chamber, source: "openstates" },
       "State bill search DB miss; querying OpenStates",
     );
 
@@ -1121,7 +1124,7 @@ router.get("/state/bills/search", async (req, res) => {
       per_page: limit,
       page: 1,
     };
-    if (jurisdiction) params.jurisdiction = jurisdiction;
+    if (state) params.jurisdiction = state.toLowerCase();
     if (chamber) params.chamber = chamber;
 
     const data = await openStatesFetch("/bills", params);
@@ -1131,12 +1134,14 @@ router.get("/state/bills/search", async (req, res) => {
     // Upsert into DB so subsequent pages and repeated searches hit the cache
     for (const [idx, bill] of bills.entries()) {
       const sourceBill = sourceBills[idx];
-      const billJurisdiction =
-        jurisdiction ??
-        sourceBill?.jurisdiction?.name ??
-        sourceBill?.jurisdiction ??
-        "unknown";
-      await upsertStateBill({ bill, sourceBill, jurisdiction: billJurisdiction });
+      const billState = requireUsStateCode(
+        state ??
+          sourceBill?.jurisdiction?.id ??
+          sourceBill?.jurisdiction?.name ??
+          sourceBill?.jurisdiction,
+        `state bill ${sourceBill?.id ?? bill.id}`,
+      );
+      await upsertStateBill({ bill, sourceBill, state: billState });
     }
 
     // Stage filters are derived from action text — apply in memory since OpenStates
@@ -1157,7 +1162,7 @@ router.get("/state/bills/search", async (req, res) => {
       : Number(data.pagination?.total_items ?? bills.length);
 
     req.log.info(
-      { q, jurisdiction, totalCount, source: "openstates" },
+      { q, state, totalCount, source: "openstates" },
       "Served state bill search from OpenStates",
     );
 
@@ -1227,7 +1232,10 @@ async function upsertStateBillFromApi(data: any) {
       subjects,
       url: data.openstates_url ?? null,
       textUrl: data.openstates_url ?? null,
-      jurisdiction: data.jurisdiction?.name ?? data.jurisdiction ?? "",
+      state: requireUsStateCode(
+        data.jurisdiction?.id ?? data.jurisdiction?.name ?? data.jurisdiction,
+        `state bill ${data.id}`,
+      ),
       raw: data,
       searchVector: sql`setweight(to_tsvector('english', coalesce(${data.title ?? ""}, '')), 'A') || setweight(to_tsvector('english', coalesce(${data.identifier ?? ""}, '')), 'B') || setweight(to_tsvector('english', coalesce(${subjectsText}, '')), 'C') || setweight(to_tsvector('english', coalesce(${data.abstract ?? ""}, '')), 'C')`,
     })
@@ -1248,7 +1256,10 @@ async function upsertStateBillFromApi(data: any) {
         subjects,
         url: data.openstates_url ?? null,
         textUrl: data.openstates_url ?? null,
-        jurisdiction: data.jurisdiction?.name ?? data.jurisdiction ?? "",
+        state: requireUsStateCode(
+          data.jurisdiction?.id ?? data.jurisdiction?.name ?? data.jurisdiction,
+          `state bill ${data.id}`,
+        ),
         raw: sql`COALESCE(state_bills.raw, '{}'::jsonb) || ${JSON.stringify(data)}::jsonb`,
         fetchedAt: new Date(),
         searchVector: sql`setweight(to_tsvector('english', coalesce(${data.title ?? ""}, '')), 'A') || setweight(to_tsvector('english', coalesce(${data.identifier ?? ""}, '')), 'B') || setweight(to_tsvector('english', coalesce(${subjectsText}, '')), 'C') || setweight(to_tsvector('english', coalesce(${data.abstract ?? ""}, '')), 'C')`,
@@ -1268,7 +1279,10 @@ async function upsertStateBillFromApi(data: any) {
     subjects,
     url: data.openstates_url ?? null,
     textUrl: data.openstates_url ?? null,
-    jurisdiction: data.jurisdiction?.name ?? data.jurisdiction ?? "",
+    state: requireUsStateCode(
+      data.jurisdiction?.id ?? data.jurisdiction?.name ?? data.jurisdiction,
+      `state bill ${data.id}`,
+    ),
     raw: data,
     stageIntroduced: stageFlags.introduced,
     stageCommittee: stageFlags.committee,

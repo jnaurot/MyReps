@@ -97,7 +97,7 @@ async function main() {
 
         // 3. Get existing state_bills for this jurisdiction
         const { rows: bills } = await target.query(
-          `SELECT id, identifier, session, raw FROM state_bills WHERE jurisdiction = $1`,
+          `SELECT id, identifier, session, raw FROM state_bills WHERE state = $1`,
           [stateCode],
         );
         log(`  Bills in DB: ${bills.length}`);
