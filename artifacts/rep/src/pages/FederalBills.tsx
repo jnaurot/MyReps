@@ -24,6 +24,7 @@ import {
 import { StatusStagePills } from "@/components/layout/StatusFilterControls";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMobileInfiniteScroll } from "@/hooks/useMobileInfiniteScroll";
+import { setDesktopPaginationOffset } from "@/lib/desktopPagination";
 
 type Chamber = "both" | "house" | "senate";
 
@@ -184,6 +185,24 @@ export function FederalBills() {
     triggerIfNearBottom(e.currentTarget);
   };
 
+  const handlePreviousPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: Math.max(0, offset - limit),
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
+  const handleNextPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: offset + limit,
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
   const billsToRender = isMobile ? allBills : visibleBills;
 
   return (
@@ -321,8 +340,8 @@ export function FederalBills() {
           offset={offset}
           limit={limit}
           totalCount={effectiveTotalCount}
-          onPrevious={() => setOffset(Math.max(0, offset - limit))}
-          onNext={() => setOffset(offset + limit)}
+          onPrevious={handlePreviousPage}
+          onNext={handleNextPage}
         />
       </div>
     </PageShell>

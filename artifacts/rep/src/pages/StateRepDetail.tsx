@@ -55,6 +55,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { getApiErrorStatus, getApiErrorMessage } from "@/lib/apiError";
 import { billFromParam, stateBillPath } from "@/lib/routes";
 import { buildVoteSearch, parseVoteSearchState, type VoteFilter } from "@/lib/voteSearchParams";
+import { setDesktopPaginationOffset } from "@/lib/desktopPagination";
 
 function StateBillsList({ memberId, state, memberName, onRefresh, refreshPending, billType, onBillTypeChange }: { memberId: string; state?: string; memberName?: string; onRefresh?: () => void; refreshPending?: boolean; billType: "sponsored" | "cosponsored"; onBillTypeChange: (t: "sponsored" | "cosponsored") => void }) {
   const isMobile = useIsMobile();
@@ -208,6 +209,24 @@ function StateBillsList({ memberId, state, memberName, onRefresh, refreshPending
     triggerIfNearBottom(e.currentTarget);
   };
 
+  const handlePreviousPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: Math.max(0, offset - limit),
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
+  const handleNextPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: offset + limit,
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
   const billsToRender = isMobile ? (allBills as typeof visibleBills) : visibleBills;
 
   return (
@@ -278,6 +297,7 @@ function StateBillsList({ memberId, state, memberName, onRefresh, refreshPending
           return (
             <Link
               key={bill.id}
+              data-testid="bill-item"
               href={`/bills/state/${encodeURIComponent(bill.id)}${fromParam}`}
               onClick={() => {
                 if (typeof window === "undefined") return;
@@ -317,8 +337,8 @@ function StateBillsList({ memberId, state, memberName, onRefresh, refreshPending
           offset={offset}
           limit={limit}
           totalCount={effectiveTotalCount}
-          onPrevious={() => setOffset(Math.max(0, offset - limit))}
-          onNext={() => setOffset(offset + limit)}
+          onPrevious={handlePreviousPage}
+          onNext={handleNextPage}
         />
       </div>
     </div>
@@ -550,6 +570,24 @@ function StateVotesList({ memberId, state, memberName, memberChamber }: { member
     { value: "not-voting", label: "Not Voting" },
   ];
 
+  const handlePreviousPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: Math.max(0, offset - limit),
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
+  const handleNextPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: offset + limit,
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
   return (
     <div className="flex flex-col h-full">
       <FilterBar className="relative">
@@ -634,8 +672,8 @@ function StateVotesList({ memberId, state, memberName, memberChamber }: { member
           offset={offset}
           limit={limit}
           totalCount={totalCount}
-          onPrevious={() => setOffset(Math.max(0, offset - limit))}
-          onNext={() => setOffset(offset + limit)}
+          onPrevious={handlePreviousPage}
+          onNext={handleNextPage}
         />
       </div>
     </div>

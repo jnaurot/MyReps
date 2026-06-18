@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const federalBills = Array.from({ length: 20 }).map((_, i) => ({
+const federalBills = Array.from({ length: 60 }).map((_, i) => ({
   id: `bill-${i + 1}`,
   title: `Federal Bill Title ${i + 1}`,
   number: `HR ${1000 + i}`,
@@ -12,7 +12,18 @@ const federalBills = Array.from({ length: 20 }).map((_, i) => ({
   sponsors: ["Jane Doe"],
 }));
 
-const sponsoredBills = Array.from({ length: 20 }).map((_, i) => ({
+const stateBills = Array.from({ length: 60 }).map((_, i) => ({
+  id: `state-${i + 1}`,
+  title: `State Bill Title ${i + 1}`,
+  identifier: `HB ${100 + i}`,
+  chamber: i % 2 ? "upper" : "lower",
+  introducedDate: "2026-01-10",
+  latestAction: "In committee",
+  sponsors: ["Del. Example"],
+  session: "2026",
+}));
+
+const sponsoredBills = Array.from({ length: 26 }).map((_, i) => ({
   id: `sponsored-${i + 1}`,
   title: `Sponsored Legislation ${i + 1}`,
   number: i % 3 ? `HR ${4000 + i}` : `HRES ${700 + i}`,
@@ -23,34 +34,118 @@ const sponsoredBills = Array.from({ length: 20 }).map((_, i) => ({
   itemCategory: i % 3 ? "bill" : "resolution",
 }));
 
+const stateMemberBills = Array.from({ length: 26 }).map((_, i) => ({
+  id: `state-member-${i + 1}`,
+  identifier: `HB ${500 + i}`,
+  chamber: "lower",
+  title: `State Sponsored Bill ${i + 1}`,
+  latestAction: "Hearing scheduled",
+  introducedDate: "2026-01-20",
+}));
+
+function paginate<T>(items: T[], offset: number, limit: number) {
+  return items.slice(offset, offset + limit);
+}
+
+async function setListViewportScrollTop(page: Page, top: number) {
+  await page.locator('[data-testid="bill-item"]').first().evaluate((element, nextTop) => {
+    let node = element.parentElement;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY)) {
+        node.scrollTop = Number(nextTop);
+        node.dispatchEvent(new Event("scroll", { bubbles: true }));
+        return;
+      }
+      node = node.parentElement;
+    }
+    throw new Error("Scrollable list viewport not found");
+  }, top);
+}
+
+async function getListViewportScrollTop(page: Page) {
+  return await page.locator('[data-testid="bill-item"]').first().evaluate((element) => {
+    let node = element.parentElement;
+    while (node) {
+      const style = window.getComputedStyle(node);
+      if (/(auto|scroll)/.test(style.overflowY)) {
+        return node.scrollTop;
+      }
+      node = node.parentElement;
+    }
+    throw new Error("Scrollable list viewport not found");
+  });
+}
+
 async function mockApi(page: Page) {
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
+    const offset = Number(url.searchParams.get("offset") ?? "0");
+    const limit = Number(url.searchParams.get("limit") ?? "20");
 
     if (path === "/api/federal/bills/search") {
-      return route.fulfill({ json: { bills: federalBills.slice(0, 5), totalCount: 24, offset: 0 } });
+      return route.fulfill({
+        json: {
+          bills: paginate(federalBills, offset, limit).slice(0, 5),
+          totalCount: 24,
+          offset,
+        },
+      });
     }
     if (path === "/api/federal/bills") {
       const stages = url.searchParams.get("stages") ?? "";
       if (stages) return route.fulfill({ json: { bills: [], totalCount: 0, offset: 0 } });
-      return route.fulfill({ json: { bills: federalBills, totalCount: 48, offset: 0 } });
+      return route.fulfill({
+        json: {
+          bills: paginate(federalBills, offset, limit),
+          totalCount: 48,
+          offset,
+        },
+      });
+    }
+    if (path.startsWith("/api/federal/bills/")) {
+      return route.fulfill({
+        json: {
+          title: "Federal Bill Detail",
+          number: "HR 1000",
+          congress: "119",
+          introducedDate: "2026-01-15",
+          latestAction: "Referred to Committee",
+          latestActionDate: "2026-02-01",
+          summary: "Summary text",
+          sponsors: [],
+          cosponsors: [],
+          committees: [],
+          actions: [],
+          progress: { introduced: true, committee: true },
+        },
+      });
     }
     if (path === "/api/state/bills") {
       return route.fulfill({
         json: {
-          bills: federalBills.map((b, i) => ({
-            id: `state-${i + 1}`,
-            title: `State Bill Title ${i + 1}`,
-            identifier: `HB ${100 + i}`,
-            chamber: i % 2 ? "upper" : "lower",
-            introducedDate: "2026-01-10",
-            latestAction: "In committee",
-            sponsors: ["Del. Example"],
-            session: "2026",
-          })),
+          bills: paginate(stateBills, offset, limit),
           totalCount: 37,
-          offset: 0,
+          offset,
+        },
+      });
+    }
+    if (path.startsWith("/api/state/bills/")) {
+      return route.fulfill({
+        json: {
+          id: "state-1",
+          title: "State Bill Detail",
+          identifier: "HB 100",
+          chamber: "lower",
+          introducedDate: "2026-01-10",
+          latestAction: "In committee",
+          summary: "Summary text",
+          sponsors: [],
+          cosponsors: [],
+          actions: [],
+          votes: [],
+          stages: { introduced: true, committee: true, completedStages: ["introduced", "committee"] },
         },
       });
     }
@@ -92,9 +187,9 @@ async function mockApi(page: Page) {
       const list = q ? sponsoredBills.filter((b) => b.title.toLowerCase().includes(q.toLowerCase())) : sponsoredBills;
       return route.fulfill({
         json: {
-          bills: list,
+          bills: paginate(list, offset, limit),
           totalCount: list.length,
-          offset: 0,
+          offset,
           policyAreas: [{ name: "Taxation", count: 10, pct: 50 }],
           category,
           categoryCounts: { all: 26, bill: 26, resolution: 0, amendment: 0, other: 0 },
@@ -124,16 +219,9 @@ async function mockApi(page: Page) {
     if (path === "/api/state/members/S123/bills") {
       return route.fulfill({
         json: {
-          bills: Array.from({ length: 20 }).map((_, i) => ({
-            id: `state-member-${i + 1}`,
-            identifier: `HB ${500 + i}`,
-            chamber: "lower",
-            title: `State Sponsored Bill ${i + 1}`,
-            latestAction: "Hearing scheduled",
-            introducedDate: "2026-01-20",
-          })),
+          bills: paginate(stateMemberBills, offset, limit),
           totalCount: 26,
-          offset: 0,
+          offset,
         },
       });
     }
@@ -204,4 +292,86 @@ test("federal rep category count stays in status-filter context", async ({
 
   await expect(page.getByRole("button", { name: "All (0)" })).toBeVisible();
   // "0–0 of 0" lives in a desktop-only container; the category count above is sufficient
+});
+
+test("desktop federal bills pagination resets the inner list scroll to top", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop-only pagination behavior");
+
+  await page.goto("/bills/federal");
+  await setListViewportScrollTop(page, 500);
+  await expect.poll(() => getListViewportScrollTop(page)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("21–40 of 48")).toBeVisible();
+  await expect.poll(() => getListViewportScrollTop(page)).toBe(0);
+});
+
+test("desktop state bills pagination resets the inner list scroll to top", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop-only pagination behavior");
+
+  await page.goto("/bills/state");
+  await setListViewportScrollTop(page, 500);
+  await expect.poll(() => getListViewportScrollTop(page)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("21–37 of 37")).toBeVisible();
+  await expect.poll(() => getListViewportScrollTop(page)).toBe(0);
+});
+
+test("desktop federal rep bill pagination resets the inner list scroll to top", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop-only pagination behavior");
+
+  await page.goto("/rep/federal/F000001");
+  await setListViewportScrollTop(page, 500);
+  await expect.poll(() => getListViewportScrollTop(page)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("21–26 of 26")).toBeVisible();
+  await expect.poll(() => getListViewportScrollTop(page)).toBe(0);
+});
+
+test("desktop state rep bill pagination resets the inner list scroll to top", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop-only pagination behavior");
+
+  await page.goto("/rep/state/S123");
+  await setListViewportScrollTop(page, 500);
+  await expect.poll(() => getListViewportScrollTop(page)).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: "Next" }).click();
+
+  await expect(page.getByText("21–26 of 26")).toBeVisible();
+  await expect.poll(() => getListViewportScrollTop(page)).toBe(0);
+});
+
+test("returning from bill detail restores the prior list scroll position", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "Desktop-only restoration behavior");
+
+  await page.goto("/bills/federal");
+  await setListViewportScrollTop(page, 500);
+  const scrollBeforeOpen = await getListViewportScrollTop(page);
+
+  await page.locator('[data-testid="bill-item"]').nth(6).click();
+  await expect(page.getByRole("link", { name: /Back to Federal Bills/i })).toBeVisible();
+
+  await page.getByRole("link", { name: /Back to Federal Bills/i }).click();
+  await expect(page.getByText("1–20 of 48")).toBeVisible();
+  await expect.poll(() => getListViewportScrollTop(page)).toBe(scrollBeforeOpen);
 });

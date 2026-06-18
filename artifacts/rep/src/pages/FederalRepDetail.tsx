@@ -64,6 +64,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { buildFederalBillHref, buildFederalVoteBillHref } from "@/lib/billHref";
 import { billFromParam } from "@/lib/routes";
 import { buildVoteSearch, parseVoteSearchState, type VoteFilter } from "@/lib/voteSearchParams";
+import { setDesktopPaginationOffset } from "@/lib/desktopPagination";
 
 function PolicyAreaChart({
   policyAreas,
@@ -395,6 +396,24 @@ export function BillsList({
     triggerIfNearBottom(e.currentTarget);
   };
 
+  const handlePreviousPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: Math.max(0, offset - limit),
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
+  const handleNextPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: offset + limit,
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
   function internalBillHref(bill: {
     number?: string;
     congress?: string;
@@ -661,8 +680,8 @@ export function BillsList({
               offset={offset}
               limit={limit}
               totalCount={displayedTotalCount}
-              onPrevious={() => setOffset(Math.max(0, offset - limit))}
-              onNext={() => setOffset(offset + limit)}
+              onPrevious={handlePreviousPage}
+              onNext={handleNextPage}
             />
           </div>
         </div>
@@ -847,6 +866,24 @@ function VotesList({
     const visible = Math.max(1, Math.round(ratio * allVotes.length));
     setLastVisible(Math.min(visible, allVotes.length));
     triggerIfNearBottom(e.currentTarget);
+  };
+
+  const handlePreviousPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: Math.max(0, offset - limit),
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
+  };
+
+  const handleNextPage = () => {
+    setDesktopPaginationOffset({
+      nextOffset: offset + limit,
+      isMobile,
+      listViewportRef,
+      setOffset,
+    });
   };
 
   const shouldUseCurrentPageVotes =
@@ -1068,8 +1105,8 @@ function VotesList({
           offset={offset}
           limit={limit}
           totalCount={totalCount}
-          onPrevious={() => setOffset(Math.max(0, offset - limit))}
-          onNext={() => setOffset(offset + limit)}
+          onPrevious={handlePreviousPage}
+          onNext={handleNextPage}
         />
       </div>
     </div>
