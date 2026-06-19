@@ -73,8 +73,8 @@ export function StateBills() {
   const stageQuery = buildBillStageQuery(selectedStages);
 
   const params = chamber === "all"
-    ? { offset, limit, state: stateCode, stages: stageQuery }
-    : { chamber: chamber as "upper" | "lower", offset, limit, state: stateCode, stages: stageQuery };
+    ? { offset, limit, state: stateCode ?? undefined, stages: stageQuery }
+    : { chamber: chamber as "upper" | "lower", offset, limit, state: stateCode ?? undefined, stages: stageQuery };
 
   const { data, isLoading, isPlaceholderData, error } = useGetStateBills(params, {
     query: {
@@ -84,8 +84,8 @@ export function StateBills() {
     }
   });
   const searchParams = chamber === "all"
-    ? { q: searchQuery, state: stateCode, offset, limit, stages: stageQuery }
-    : { q: searchQuery, state: stateCode, chamber: chamber as "upper" | "lower", offset, limit, stages: stageQuery };
+    ? { q: searchQuery, state: stateCode ?? undefined, offset, limit, stages: stageQuery }
+    : { q: searchQuery, state: stateCode ?? undefined, chamber: chamber as "upper" | "lower", offset, limit, stages: stageQuery };
   const {
     data: searchData,
     isLoading: isSearchLoading,

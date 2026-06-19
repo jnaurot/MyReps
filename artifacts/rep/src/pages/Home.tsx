@@ -54,7 +54,7 @@ export function Home() {
   // Dropdown queries — fire while typing (debounced). Use standard query key functions so
   // the results queries below share the cache when activeTextQuery === debouncedQuery.
   const acFbParams = { q: debouncedQuery, limit: searchLimit };
-  const acSbParams = { q: debouncedQuery, state: selectedState, limit: searchLimit };
+  const acSbParams = { q: debouncedQuery, state: selectedState ?? undefined, limit: searchLimit };
   const acMemParams = { q: debouncedQuery, limit: searchLimit };
 
   const { data: acFederalBills } = useSearchFederalBills(acFbParams, {
@@ -125,7 +125,7 @@ export function Home() {
   // Results queries — fire after Enter. Share cache with dropdown queries above when
   // activeTextQuery === debouncedQuery (the normal case after a brief typing pause).
   const resFbParams = { q: activeTextQuery, limit: searchLimit };
-  const resSbParams = { q: activeTextQuery, state: selectedState, limit: searchLimit };
+  const resSbParams = { q: activeTextQuery, state: selectedState ?? undefined, limit: searchLimit };
   const resMemParams = { q: activeTextQuery, limit: searchLimit };
 
   const { data: federalBillsSearch, isLoading: fbLoading } = useSearchFederalBills(resFbParams, {
